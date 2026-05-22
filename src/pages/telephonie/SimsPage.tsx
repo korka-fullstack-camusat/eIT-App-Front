@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Plus, Settings2, X, Link, Pencil, Trash2, AlertTriangle, Unlink, Upload, Download, FileText, CheckCircle2 } from "lucide-react";
+import { Plus, Settings2, X, Link, Pencil, Trash2, AlertTriangle, Unlink, Upload, Download, FileText, CheckCircle2, Smartphone, Calendar } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { simService, siteService, vehiculeService, employeeService } from "@/services/api";
@@ -31,6 +31,9 @@ export default function SimsPage() {
   const [importResult,  setImportResult]  = useState<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal Détail
+  const [detailSim, setDetailSim] = useState<NumeroSIM | null>(null);
 
   // Modal Gérer
   const [gererSim,  setGererSim]  = useState<NumeroSIM | null>(null);
@@ -211,7 +214,7 @@ export default function SimsPage() {
             ) : sims.length === 0 ? (
               <tr><td colSpan={5} className="py-12 text-center text-gray-400">Aucun numéro SIM</td></tr>
             ) : sims.map(s => (
-              <tr key={s.id} className="hover:bg-gray-50/50 transition">
+              <tr key={s.id} className="hover:bg-gray-50/50 transition cursor-pointer" onClick={() => setDetailSim(s)}>
                 <td className="px-4 py-3">
                   <p className="font-mono font-semibold text-gray-800">{s.numero}</p>
                   {s.affectation_active && (
@@ -237,7 +240,7 @@ export default function SimsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <button
-                    onClick={() => openGerer(s)}
+                    onClick={e => { e.stopPropagation(); openGerer(s); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-lg text-xs font-semibold transition shadow-sm"
                   >
                     <Settings2 size={12} /> Gérer
@@ -248,6 +251,133 @@ export default function SimsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* ══ Modal Détail SIM ═══════════════════════════════════════════════════ */}
+      {detailSim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailSim(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Smartphone size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold font-mono text-base">{detailSim.numero}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-white/60 text-xs">{CAT_LABELS[detailSim.categorie]}</span>
+                    <span className="w-1 h-1 rounded-full bg-white/40" />
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${detailSim.statut === "ACTIVE" ? "bg-emerald-400/30 text-emerald-200" : "bg-gray-400/30 text-gray-200"}`}>
+                      {detailSim.statut === "ACTIVE" ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setDetailSim(null)} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <X size={14} className="text-white" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+
+              {/* Champs principaux */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Numéro</p>
+                  <p className="text-sm font-mono font-semibold text-gray-800 mt-1">{detailSim.numero}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">IMSI</p>
+                  <p className="text-sm font-mono text-gray-700 mt-1">{detailSim.imsi || <span className="text-gray-300">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Catégorie</p>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${CAT_COLORS[detailSim.categorie]}`}>
+                    {CAT_LABELS[detailSim.categorie]}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Opérateur</p>
+                  <p className="text-sm text-gray-700 mt-1">{detailSim.operateur || <span className="text-gray-300">—</span>}</p>
+                </div>
+                {detailSim.description && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Description</p>
+                    <p className="text-sm text-gray-700 mt-1">{detailSim.description}</p>
+                  </div>
+                )}
+                <div className="col-span-2 flex items-center gap-1.5 text-gray-400">
+                  <Calendar size={12} />
+                  <p className="text-xs">Créé le {new Date(detailSim.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100" />
+
+              {/* Affectation active */}
+              {detailSim.affectation_active ? (() => {
+                const aff = detailSim.affectation_active!;
+                return (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Affectation active</p>
+                    {aff.employee_nom && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Employé</span>
+                        <span className="text-xs font-semibold text-gray-800">{aff.employee_nom}</span>
+                      </div>
+                    )}
+                    {aff.employee_matricule && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Matricule</span>
+                        <span className="text-xs font-mono text-gray-700">{aff.employee_matricule}</span>
+                      </div>
+                    )}
+                    {aff.site_id && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Site</span>
+                        <span className="text-xs font-semibold text-gray-800">Site #{aff.site_id}</span>
+                      </div>
+                    )}
+                    {aff.vehicule_id && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Véhicule</span>
+                        <span className="text-xs font-semibold text-gray-800">Véhicule #{aff.vehicule_id}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Depuis le</span>
+                      <span className="text-xs text-gray-700">{new Date(aff.date_debut).toLocaleDateString("fr-FR")}</span>
+                    </div>
+                    {aff.notes && (
+                      <div className="pt-1 border-t border-emerald-200">
+                        <p className="text-xs text-gray-500">Notes</p>
+                        <p className="text-xs text-gray-700 mt-0.5">{aff.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                  <p className="text-xs text-gray-400">Aucune affectation active</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setDetailSim(null)}
+                  className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                  Fermer
+                </button>
+                <button onClick={() => { openGerer(detailSim); setDetailSim(null); }}
+                  className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                  <Settings2 size={14} /> Gérer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ Modal Gérer ════════════════════════════════════════════════════════ */}
       {gererSim && (

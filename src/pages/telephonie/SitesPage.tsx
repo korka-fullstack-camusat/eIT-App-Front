@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Plus, Settings2, X, Pencil, Trash2, Upload, Download, FileText, CheckCircle2 } from "lucide-react";
+import { Plus, Settings2, X, Pencil, Trash2, Upload, Download, FileText, CheckCircle2, Radio, Calendar, Smartphone } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { siteService } from "@/services/api";
@@ -12,6 +12,9 @@ export default function SitesPage() {
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filterSim,  setFilterSim]  = useState("");
+
+  // Modal Détail
+  const [detailSite, setDetailSite] = useState<SiteGSM | null>(null);
 
   // Modal Gérer
   const [gererSite, setGererSite] = useState<SiteGSM | null>(null);
@@ -174,7 +177,7 @@ export default function SitesPage() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={5} className="py-12 text-center text-gray-400">Aucun site</td></tr>
             ) : filtered.map(s => (
-              <tr key={s.id} className="hover:bg-gray-50/50 transition">
+              <tr key={s.id} className="hover:bg-gray-50/50 transition cursor-pointer" onClick={() => setDetailSite(s)}>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">
                   {s.imsi ?? <span className="text-gray-300">—</span>}
                 </td>
@@ -192,7 +195,7 @@ export default function SitesPage() {
                   {s.sim_numero ?? <span className="text-gray-300 font-normal text-xs">Non affecté</span>}
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => openGerer(s)}
+                  <button onClick={e => { e.stopPropagation(); openGerer(s); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-lg text-xs font-semibold transition shadow-sm">
                     <Settings2 size={12} /> Gérer
                   </button>
@@ -202,6 +205,94 @@ export default function SitesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* ══ Modal Détail Site ══════════════════════════════════════════════════ */}
+      {detailSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailSite(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Radio size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-base">{detailSite.nom}</p>
+                  <p className="text-white/60 text-xs mt-0.5">
+                    {detailSite.code_site ? `${detailSite.code_site} · ` : ""}{detailSite.localisation || "Localisation non renseignée"}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setDetailSite(null)} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <X size={14} className="text-white" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+
+              {/* Champs */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">SiteID</p>
+                  {detailSite.code_site
+                    ? <span className="inline-block mt-1 px-2 py-0.5 bg-camublue-900/10 text-camublue-900 rounded-lg text-xs font-semibold">{detailSite.code_site}</span>
+                    : <p className="text-sm text-gray-300 mt-1">—</p>
+                  }
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">IMSI du site</p>
+                  <p className="text-sm font-mono text-gray-700 mt-1">{detailSite.imsi || <span className="text-gray-300">—</span>}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Nom du site</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1">{detailSite.nom}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Localisation</p>
+                  <p className="text-sm text-gray-700 mt-1">{detailSite.localisation || <span className="text-gray-300">—</span>}</p>
+                </div>
+                <div className="col-span-2 flex items-center gap-1.5 text-gray-400">
+                  <Calendar size={12} />
+                  <p className="text-xs">Créé le {new Date(detailSite.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100" />
+
+              {/* SIM affectée */}
+              {detailSite.sim_numero ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">Numéro SIM affecté</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-200 flex items-center justify-center shrink-0">
+                      <Smartphone size={16} className="text-emerald-700" />
+                    </div>
+                    <p className="text-base font-mono font-bold text-emerald-800">{detailSite.sim_numero}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                  <p className="text-xs text-gray-400">Aucun numéro SIM affecté</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Assignez depuis la page <span className="font-semibold">Numéros SIM</span></p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setDetailSite(null)}
+                  className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                  Fermer
+                </button>
+                <button onClick={() => { openGerer(detailSite); setDetailSite(null); }}
+                  className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                  <Settings2 size={14} /> Gérer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ Modal Gérer ══════════════════════════════════════════════════════════ */}
       {gererSite && (

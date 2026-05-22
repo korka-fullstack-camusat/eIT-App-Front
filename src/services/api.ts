@@ -109,6 +109,24 @@ export const vehiculeService = {
   create:  (data: any) => ax.post<Vehicule>("/telephonie/vehicules", data).then(r => r.data),
   update:  (id: number, data: any) => ax.patch<Vehicule>(`/telephonie/vehicules/${id}`, data).then(r => r.data),
   delete:  (id: number) => ax.delete(`/telephonie/vehicules/${id}`),
+  exportCsv: async () => {
+    const response = await ax.get("/telephonie/vehicules/export", { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "vehicules.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+  importVehicules: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number }>(
+      "/telephonie/vehicules/import", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
 };
 
 // ── Factures ──────────────────────────────────────────────────────────────────

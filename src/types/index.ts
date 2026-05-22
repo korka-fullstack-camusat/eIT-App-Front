@@ -91,6 +91,7 @@ export interface Vehicule {
   modele:          string | null;
   affectation:     string | null;
   created_at:      string;
+  sim_numero:      string | null;
 }
 
 export interface AffectationSIM {
