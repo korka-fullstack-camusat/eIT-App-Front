@@ -63,21 +63,25 @@ export type CategorieSIM = "EMPLOYE" | "M2M_SITE" | "M2M_VEHICULE";
 export type StatutSIM    = "ACTIVE" | "INACTIVE" | "SUSPENDUE";
 
 export interface NumeroSIM {
-  id:          number;
-  numero:      string;
-  categorie:   CategorieSIM;
-  statut:      StatutSIM;
-  operateur:   string | null;
-  description: string | null;
-  created_at:  string;
+  id:                 number;
+  numero:             string;
+  imsi:               string | null;
+  categorie:          CategorieSIM;
+  statut:             StatutSIM;
+  operateur:          string | null;
+  description:        string | null;
+  created_at:         string;
+  affectation_active: AffectationSIM | null;
 }
 
 export interface SiteGSM {
   id:           number;
+  code_site:    string | null;
+  imsi:         string | null;
   nom:          string;
   localisation: string | null;
-  description:  string | null;
   created_at:   string;
+  sim_numero:   string | null;
 }
 
 export interface Vehicule {
@@ -100,6 +104,7 @@ export interface AffectationSIM {
   employee_matricule: string | null;
   site_id:            number | null;
   vehicule_id:        number | null;
+  motif_fin:          string | null;
   notes:              string | null;
   created_at:         string;
 }

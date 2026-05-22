@@ -1,19 +1,33 @@
-import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Plus, Settings2, X, Pencil, Trash2, Upload, Download, FileText, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { siteService } from "@/services/api";
 import type { SiteGSM } from "@/types";
 
-const EMPTY = { nom: "", localisation: "", description: "" };
+const EMPTY = { code_site: "", imsi: "", nom: "", localisation: "" };
 
 export default function SitesPage() {
   const [sites,   setSites]   = useState<SiteGSM[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
-  const [modal,   setModal]   = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [form,    setForm]    = useState<any>(EMPTY);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [filterSim,  setFilterSim]  = useState("");
+
+  // Modal Gérer
+  const [gererSite, setGererSite] = useState<SiteGSM | null>(null);
+  const [gererMode, setGererMode] = useState<"menu" | "modifier" | "supprimer">("menu");
+  const [form,      setForm]      = useState<any>(EMPTY);
+
+  // Modal Import
+  const [importModal,   setImportModal]   = useState(false);
+  const [importFile,    setImportFile]    = useState<File | null>(null);
+  const [importResult,  setImportResult]  = useState<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal Nouveau site
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm,  setCreateForm]  = useState<any>(EMPTY);
 
   const load = () => {
     setLoading(true);
@@ -23,74 +37,165 @@ export default function SitesPage() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setForm(EMPTY); setEditing(null); setModal(true); };
-  const openEdit   = (s: SiteGSM) => {
-    setForm({ nom: s.nom, localisation: s.localisation ?? "", description: s.description ?? "" });
-    setEditing(s.id); setModal(true);
-  };
 
-  const handleSubmit = async () => {
+  const openGerer = (s: SiteGSM) => {
+    setGererSite(s);
+    setGererMode("menu");
+    setForm({ code_site: s.code_site ?? "", imsi: s.imsi ?? "", nom: s.nom, localisation: s.localisation ?? "" });
+  };
+  const closeGerer = () => { setGererSite(null); setGererMode("menu"); };
+
+  const handleModifier = async () => {
+    if (!gererSite) return;
     try {
-      if (editing) await siteService.update(editing, form);
-      else         await siteService.create(form);
-      toast.success(editing ? "Site mis à jour" : "Site créé");
-      setModal(false); load();
+      await siteService.update(gererSite.id, form);
+      toast.success("Site mis à jour"); closeGerer(); load();
     } catch (e: any) { toast.error(e?.response?.data?.detail ?? "Erreur"); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer ce site ?")) return;
-    try { await siteService.delete(id); toast.success("Supprimé"); load(); }
-    catch { toast.error("Impossible de supprimer"); }
+  const handleSupprimer = async () => {
+    if (!gererSite) return;
+    try {
+      await siteService.delete(gererSite.id);
+      toast.success("Site supprimé"); closeGerer(); load();
+    } catch (e: any) { toast.error(e?.response?.data?.detail ?? "Erreur"); }
   };
 
-  const filtered = sites.filter(s =>
-    !search || s.nom.toLowerCase().includes(search.toLowerCase()) ||
-    (s.localisation ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const handleExport = async () => {
+    try { await siteService.exportCsv(); }
+    catch { toast.error("Erreur lors de l'export"); }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    try {
+      const result = await siteService.importSites(importFile);
+      setImportResult(result);
+      if (result.created > 0 || result.updated > 0) load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Erreur lors de l'import");
+    } finally { setImportLoading(false); }
+  };
+
+  const closeImport = () => {
+    setImportModal(false); setImportFile(null); setImportResult(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCreate = async () => {
+    if (!createForm.nom.trim()) { toast.error("Le nom du site est obligatoire"); return; }
+    try {
+      await siteService.create(createForm);
+      toast.success("Site créé");
+      setCreateModal(false);
+      setCreateForm(EMPTY);
+      load();
+    } catch (e: any) { toast.error(e?.response?.data?.detail ?? "Erreur"); }
+  };
+
+  const filtered = sites.filter(s => {
+    if (filterSim === "affecte"     && !s.sim_numero)  return false;
+    if (filterSim === "non_affecte" &&  s.sim_numero)  return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (
+        s.nom.toLowerCase().includes(q) ||
+        (s.code_site   ?? "").toLowerCase().includes(q) ||
+        (s.imsi        ?? "").toLowerCase().includes(q) ||
+        (s.sim_numero  ?? "").toLowerCase().includes(q) ||
+        (s.localisation ?? "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const FIELDS = [
+    { label: "IMSI",          key: "imsi",         placeholder: "Ex : 608030012345678" },
+    { label: "SiteID",        key: "code_site",    placeholder: "Ex : SITE-001" },
+    { label: "Nom du site *", key: "nom",          placeholder: "Nom du site" },
+    { label: "Localisation",  key: "localisation", placeholder: "Ville, région…" },
+  ];
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-6">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Sites GSM</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{sites.length} site(s)</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {filtered.length !== sites.length ? `${filtered.length} / ` : ""}{sites.length} site(s)
+          </p>
         </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-          <Plus size={16} /> Ajouter site
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition">
+            <Download size={15} /> Exporter
+          </button>
+          <button onClick={() => { setImportResult(null); setImportFile(null); setImportModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition">
+            <Upload size={15} /> Importer
+          </button>
+          <button onClick={() => { setCreateForm(EMPTY); setCreateModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <Plus size={16} /> Ajouter site
+          </button>
+        </div>
       </div>
 
-      <div className="mb-4 max-w-sm">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un site…"
-          className="input-base" />
+      {/* ── Filtres ── */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher par nom, SiteID, IMSI, numéro SIM…"
+          className="input-base flex-1 min-w-48" />
+        <select value={filterSim} onChange={e => setFilterSim(e.target.value)}
+          className="input-base w-auto px-3 py-2.5">
+          <option value="">Tous les sites</option>
+          <option value="affecte">Avec SIM affecté</option>
+          <option value="non_affecte">Sans SIM affecté</option>
+        </select>
       </div>
 
+      {/* ── Tableau ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>{["Nom","Localisation","Description","Actions"].map(h => (
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-            ))}</tr>
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[20%]">IMSI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[16%]">SiteID</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[28%]">Nom du site</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[24%]">Numéro SIM</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[12%]">Actions</th>
+            </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={4} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="py-12 text-center text-gray-400">Aucun site</td></tr>
+              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Aucun site</td></tr>
             ) : filtered.map(s => (
               <tr key={s.id} className="hover:bg-gray-50/50 transition">
-                <td className="px-4 py-3 font-semibold text-gray-800">{s.nom}</td>
-                <td className="px-4 py-3 text-gray-600">{s.localisation ?? "—"}</td>
-                <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{s.description ?? "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                  {s.imsi ?? <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-1.5">
-                    <button onClick={() => openEdit(s)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition"><Pencil size={14} /></button>
-                    <button onClick={() => handleDelete(s.id)}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition"><Trash2 size={14} /></button>
-                  </div>
+                  {s.code_site
+                    ? <span className="px-2 py-0.5 bg-camublue-900/10 text-camublue-900 rounded-lg text-xs font-semibold">{s.code_site}</span>
+                    : <span className="text-gray-300">—</span>
+                  }
+                </td>
+                <td className="px-4 py-3">
+                  <p className="font-semibold text-gray-800 truncate">{s.nom}</p>
+                  {s.localisation && <p className="text-xs text-gray-400 truncate">{s.localisation}</p>}
+                </td>
+                <td className="px-4 py-3 font-mono text-sm font-semibold text-gray-800">
+                  {s.sim_numero ?? <span className="text-gray-300 font-normal text-xs">Non affecté</span>}
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openGerer(s)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-lg text-xs font-semibold transition shadow-sm">
+                    <Settings2 size={12} /> Gérer
+                  </button>
                 </td>
               </tr>
             ))}
@@ -98,28 +203,237 @@ export default function SitesPage() {
         </table>
       </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setModal(false)}>
+      {/* ══ Modal Gérer ══════════════════════════════════════════════════════════ */}
+      {gererSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeGerer}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Settings2 size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">{gererSite.nom}</p>
+                  <p className="text-white/60 text-xs">
+                    {gererSite.code_site ? `${gererSite.code_site} · ` : ""}{gererSite.localisation ?? "—"}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeGerer} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <X size={14} className="text-white" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+
+              {/* ── Menu ── */}
+              {gererMode === "menu" && (
+                <div className="px-6 py-5 space-y-2.5">
+                  <button onClick={() => setGererMode("modifier")}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition group">
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center shrink-0 transition">
+                      <Pencil size={16} className="text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-gray-800">Modifier</p>
+                      <p className="text-xs text-gray-400">Changer les informations du site</p>
+                    </div>
+                  </button>
+
+                  <button onClick={() => setGererMode("supprimer")}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-200 hover:bg-red-50 hover:border-red-300 transition group">
+                    <div className="w-9 h-9 rounded-xl bg-red-100 group-hover:bg-red-200 flex items-center justify-center shrink-0 transition">
+                      <Trash2 size={16} className="text-red-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-gray-800">Supprimer</p>
+                      <p className="text-xs text-gray-400">Retirer ce site du système</p>
+                    </div>
+                  </button>
+
+                  <button onClick={closeGerer}
+                    className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition mt-1">
+                    Fermer
+                  </button>
+                </div>
+              )}
+
+              {/* ── Modifier ── */}
+              {gererMode === "modifier" && (
+                <div className="px-6 py-5 space-y-3">
+                  {FIELDS.map(({ label, key, placeholder }) => (
+                    <div key={key}>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>
+                      <input type="text" value={form[key]}
+                        onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}
+                        placeholder={placeholder} className="input-base" />
+                    </div>
+                  ))}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setGererMode("menu")}
+                      className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                      Retour
+                    </button>
+                    <button onClick={handleModifier}
+                      className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                      Enregistrer
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Supprimer ── */}
+              {gererMode === "supprimer" && (
+                <div className="px-6 py-5 space-y-4">
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-sm font-semibold text-red-800">Confirmer la suppression</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Le site <span className="font-bold">{gererSite.nom}</span> sera définitivement supprimé.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setGererMode("menu")}
+                      className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                      Annuler
+                    </button>
+                    <button onClick={handleSupprimer}
+                      className="flex-[2] bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                      Supprimer définitivement
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Import ════════════════════════════════════════════════════════ */}
+      {importModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeImport}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Upload size={18} className="text-white" />
+                </div>
+                <p className="text-white font-bold text-sm">Importer des sites GSM</p>
+              </div>
+              <button onClick={closeImport} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <X size={14} className="text-white" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {importResult ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <CheckCircle2 size={18} /><p className="font-semibold text-sm">Import terminé</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                      <p className="text-xl font-bold text-emerald-700">{importResult.created}</p>
+                      <p className="text-xs text-emerald-600 mt-0.5">Créés</p>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                      <p className="text-xl font-bold text-blue-700">{importResult.updated}</p>
+                      <p className="text-xs text-blue-600 mt-0.5">Mis à jour</p>
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                      <p className="text-xl font-bold text-red-600">{importResult.errors.length}</p>
+                      <p className="text-xs text-red-500 mt-0.5">Erreurs</p>
+                    </div>
+                  </div>
+                  {importResult.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 max-h-36 overflow-y-auto">
+                      <p className="text-xs font-semibold text-red-700 mb-1.5">Détail des erreurs</p>
+                      {importResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-red-600">Ligne {e.ligne} : {e.message}</p>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={closeImport}
+                    className="w-full bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                    Fermer
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                    <FileText size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-blue-800">Format attendu (CSV séparateur ;)</p>
+                      <p className="text-xs text-blue-600 mt-0.5 font-mono">SiteID;Nom du site;Localisation;Description</p>
+                      <p className="text-xs text-blue-500 mt-1">Seul le <span className="font-semibold">Nom du site</span> est obligatoire.</p>
+                    </div>
+                  </div>
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${
+                      importFile ? "border-emerald-400 bg-emerald-50" : "border-gray-200 hover:border-camublue-900/40 hover:bg-gray-50"
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input ref={fileInputRef} type="file" accept=".csv" className="hidden"
+                      onChange={e => setImportFile(e.target.files?.[0] ?? null)} />
+                    {importFile ? (
+                      <div className="flex items-center justify-center gap-2 text-emerald-700">
+                        <CheckCircle2 size={18} />
+                        <p className="text-sm font-semibold">{importFile.name}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600 font-medium">Cliquer pour sélectionner un fichier CSV</p>
+                        <p className="text-xs text-gray-400 mt-1">Encodage UTF-8 ou Latin-1</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={closeImport}
+                      className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                      Annuler
+                    </button>
+                    <button onClick={handleImport} disabled={!importFile || importLoading}
+                      className="flex-[2] bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                      {importLoading
+                        ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Importation…</>
+                        : <><Upload size={14} /> Lancer l'import</>
+                      }
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Nouveau site ═══════════════════════════════════════════════════ */}
+      {createModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-lg text-camublue-900 mb-4">{editing ? "Modifier" : "Nouveau"} site GSM</h2>
+            <h2 className="font-bold text-lg text-camublue-900 mb-4">Nouveau site GSM</h2>
             <div className="space-y-3">
-              {[
-                { label: "Nom *",        key: "nom"          },
-                { label: "Localisation", key: "localisation" },
-                { label: "Description",  key: "description"  },
-              ].map(({ label, key }) => (
+              {FIELDS.map(({ label, key, placeholder }) => (
                 <div key={key}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
-                  <input type="text" value={form[key]} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}
-                    className="input-base" />
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>
+                  <input type="text" value={createForm[key]}
+                    onChange={e => setCreateForm((p: any) => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder} className="input-base" />
                 </div>
               ))}
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={() => setModal(false)}
-                className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={handleSubmit}
-                className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">Enregistrer</button>
+              <button onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }}
+                className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                Annuler
+              </button>
+              <button onClick={handleCreate}
+                className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                Créer
+              </button>
             </div>
           </div>
         </div>

@@ -50,9 +50,33 @@ export const simService = {
   create:    (data: any)          => ax.post<NumeroSIM>("/telephonie/sims", data).then(r => r.data),
   update:    (id: number, data: any) => ax.patch<NumeroSIM>(`/telephonie/sims/${id}`, data).then(r => r.data),
   delete:    (id: number)         => ax.delete(`/telephonie/sims/${id}`),
-  affecter:  (id: number, data: any) =>
+  affecter:    (id: number, data: any) =>
     ax.post<AffectationSIM>(`/telephonie/sims/${id}/affecter`, data).then(r => r.data),
-  historique: (id: number)        => ax.get<AffectationSIM[]>(`/telephonie/sims/${id}/historique`).then(r => r.data),
+  desaffecter: (id: number, motif?: string) =>
+    ax.patch<AffectationSIM>(`/telephonie/sims/${id}/desaffecter`, { motif: motif || null }).then(r => r.data),
+  historique:  (id: number) => ax.get<AffectationSIM[]>(`/telephonie/sims/${id}/historique`).then(r => r.data),
+  exportCsv: async (params?: { categorie?: string; statut?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.categorie) q.set("categorie", params.categorie);
+    if (params?.statut)    q.set("statut",    params.statut);
+    if (params?.search)    q.set("search",    params.search);
+    const response = await ax.get(`/telephonie/sims/export?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "numeros_sim.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+  importSims: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number }>(
+      "/telephonie/sims/import", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
 };
 
 export const siteService = {
@@ -60,6 +84,24 @@ export const siteService = {
   create:  (data: any) => ax.post<SiteGSM>("/telephonie/sites", data).then(r => r.data),
   update:  (id: number, data: any) => ax.patch<SiteGSM>(`/telephonie/sites/${id}`, data).then(r => r.data),
   delete:  (id: number) => ax.delete(`/telephonie/sites/${id}`),
+  exportCsv: async () => {
+    const response = await ax.get("/telephonie/sites/export", { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "sites_gsm.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+  importSites: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number }>(
+      "/telephonie/sites/import", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
 };
 
 export const vehiculeService = {
