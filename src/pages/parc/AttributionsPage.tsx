@@ -1,12 +1,30 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Plus, Search, X, Download, RotateCcw, Settings2,
-  User, Package, Calendar, FileText, CheckCircle, Clock,
+  User, Package, Calendar, FileText, CheckCircle, Clock, Upload, LayoutTemplate,
+  ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Trash2, Info,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
-import { attributionService, materielService, employeeService } from "@/services/api";
+import { attributionService, materielService, employeeService, templateService } from "@/services/api";
 import type { Attribution, Materiel, Employee } from "@/types";
+
+// ── Carte statistique ─────────────────────────────────────────────────────────
+function StatCard({
+  label, value, color, onClick, active,
+}: { label: string; value: number | string; color: string; onClick?: () => void; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 min-w-[120px] rounded-2xl border p-4 flex flex-col items-center justify-center gap-0.5 transition select-none
+        ${active ? `${color} border-transparent shadow-md scale-[1.03]` : "bg-white border-gray-100 hover:shadow-sm hover:border-gray-200"}
+        ${onClick ? "cursor-pointer" : "cursor-default"}`}
+    >
+      <p className={`text-3xl font-black leading-none ${active ? "text-white" : "text-gray-800"}`}>{value}</p>
+      <p className={`text-xs font-semibold mt-1 ${active ? "text-white/80" : "text-gray-400"}`}>{label}</p>
+    </button>
+  );
+}
 
 // ── Badge statut ──────────────────────────────────────────────────────────────
 function StatutBadge({ statut }: { statut: string }) {
@@ -58,11 +76,78 @@ function groupByEmployee(attributions: Attribution[]): EmployeeGroup[] {
   return Array.from(map.values());
 }
 
+const PAGE_SIZE = 10;
+
 export default function AttributionsPage() {
   const [items,   setItems]   = useState<Attribution[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
-  const [filtre,  setFiltre]  = useState<"" | "ACTIVE" | "CLOTUREE">("");
+
+  // ── Filtres ──────────────────────────────────────────────────────────────────
+  const [searchInput, setSearchInput] = useState("");
+  const [search,      setSearch]      = useState("");
+  const [filtre,      setFiltre]      = useState<"" | "ACTIVE" | "CLOTUREE">("");
+  const [serviceFilter, setServiceFilter] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Suggestions
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggest(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  // ── Pagination ────────────────────────────────────────────────────────────────
+  const [page, setPage] = useState(1);
+
+  // Modal export Excel
+  const ATTR_COLS = [
+    { key: "id",          label: "ID" },
+    { key: "employe",     label: "Employé" },
+    { key: "matricule",   label: "Matricule" },
+    { key: "service",     label: "Service" },
+    { key: "poste",       label: "Poste" },
+    { key: "materiel",    label: "Matériel" },
+    { key: "type",        label: "Type" },
+    { key: "serie",       label: "N° Série" },
+    { key: "mac",         label: "Adresse MAC" },
+    { key: "date_attr",   label: "Date Attribution" },
+    { key: "date_rest",   label: "Date Restitution" },
+    { key: "statut",      label: "Statut" },
+    { key: "motif",       label: "Motif" },
+    { key: "etat_remise", label: "État Remise" },
+    { key: "notes",       label: "Notes" },
+  ] as const;
+  type AttrColKey = (typeof ATTR_COLS)[number]["key"];
+
+  const [exportOpen,    setExportOpen]    = useState(false);
+  const [exportDebut,   setExportDebut]   = useState("");
+  const [exportFin,     setExportFin]     = useState("");
+  const [exportStatut,  setExportStatut]  = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCols,    setExportCols]    = useState<Set<AttrColKey>>(
+    new Set(ATTR_COLS.map(c => c.key))
+  );
+  const toggleAttrCol = (k: AttrColKey) =>
+    setExportCols(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
+
+  // Modal modèle Word
+  const [modeleOpen,    setModeleOpen]    = useState(false);
+  const [templatesInfo, setTemplatesInfo] = useState<Record<string, { uploaded: boolean; size_kb?: number; placeholders: string[] }>>({});
+  const [attFile,       setAttFile]       = useState<File | null>(null);
+  const [decFile,       setDecFile]       = useState<File | null>(null);
+  const [attLoading,    setAttLoading]    = useState(false);
+  const [decLoading,    setDecLoading]    = useState(false);
+
+  const loadTemplatesInfo = () =>
+    templateService.getInfo().then(setTemplatesInfo).catch(() => {});
+
+  useEffect(() => { if (modeleOpen) loadTemplatesInfo(); }, [modeleOpen]);
 
   // Modal nouvelle attribution
   const [modal, setModal] = useState<"attribution" | null>(null);
@@ -111,6 +196,7 @@ export default function AttributionsPage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [search, filtre, serviceFilter]);
 
   useEffect(() => {
     if (modal === "attribution")
@@ -287,34 +373,89 @@ export default function AttributionsPage() {
     }
   };
 
-  const activeCount  = items.filter(a => a.statut === "ACTIVE").length;
-  const closedCount  = items.filter(a => a.statut === "CLOTUREE").length;
+  // ── Debounce recherche ────────────────────────────────────────────────────────
+  const handleSearchInput = (val: string) => {
+    setSearchInput(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!val.trim()) {
+      setSearch(""); setSuggestions([]); setShowSuggest(false); return;
+    }
+    const lower = val.toLowerCase();
+    const sugg = Array.from(new Set(
+      items.flatMap(a => [
+        a.employee_nom, a.employee_prenom,
+        a.employee_matricule, a.employee_service,
+        a.materiel?.marque,
+      ].filter(Boolean) as string[])
+        .filter(s => s.toLowerCase().includes(lower))
+    )).slice(0, 6);
+    setSuggestions(sugg);
+    setShowSuggest(sugg.length > 0);
+    searchTimer.current = setTimeout(() => { setSearch(val); setShowSuggest(false); }, 300);
+  };
+
+  // ── Dérivations ──────────────────────────────────────────────────────────────
+  const activeCount    = items.filter(a => a.statut === "ACTIVE").length;
+  const closedCount    = items.filter(a => a.statut === "CLOTUREE").length;
+  const employesActifs = new Set(items.filter(a => a.statut === "ACTIVE").map(a => a.employee_id)).size;
+  const services       = Array.from(new Set(items.map(a => a.employee_service).filter(Boolean) as string[])).sort();
 
   const filtered = items.filter(a => {
-    if (filtre && a.statut !== filtre) return false;
+    if (filtre         && a.statut           !== filtre)         return false;
+    if (serviceFilter  && a.employee_service !== serviceFilter)  return false;
     if (!search) return true;
     return `${a.employee_nom} ${a.employee_prenom} ${a.employee_matricule} ${a.employee_service} ${a.materiel?.marque}`
       .toLowerCase().includes(search.toLowerCase());
   });
 
-  const grouped = groupByEmployee(filtered);
+  const grouped       = groupByEmployee(filtered);
+  const totalPages    = Math.max(1, Math.ceil(grouped.length / PAGE_SIZE));
+  const paginatedGroups = grouped.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <AppLayout>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Attributions</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            <span className="text-emerald-600 font-semibold">{activeCount} active(s)</span>
-            <span className="mx-1.5 text-gray-300">·</span>
-            <span className="text-gray-400">{closedCount} clôturée(s)</span>
+            {loading ? "Chargement…" : `${grouped.length} employé(s)`}
           </p>
         </div>
-        <button onClick={openAttribution}
-          className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-          <Plus size={16} /> Nouvelle attribution
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setModeleOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <LayoutTemplate size={15} /> Modèle
+          </button>
+          <button onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <FileSpreadsheet size={15} />
+            <span>Exporter</span>
+            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+          </button>
+          <button onClick={openAttribution}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <Plus size={16} /> Nouvelle attribution
+          </button>
+        </div>
+      </div>
+
+      {/* ── Cartes statistiques ── */}
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatCard label="Total" value={items.length} color="bg-camublue-900"
+          onClick={() => { setFiltre(""); setServiceFilter(""); setSearchInput(""); setSearch(""); }}
+          active={!filtre && !serviceFilter && !search} />
+        <StatCard label="Actives" value={activeCount} color="bg-emerald-500"
+          onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
+          active={filtre === "ACTIVE"} />
+        <StatCard label="Clôturées" value={closedCount} color="bg-gray-500"
+          onClick={() => setFiltre(filtre === "CLOTUREE" ? "" : "CLOTUREE")}
+          active={filtre === "CLOTUREE"} />
+        <StatCard label="Employés actifs" value={employesActifs} color="bg-blue-500"
+          onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
+          active={false} />
+        <StatCard label="Groupes filtrés" value={grouped.length} color="bg-purple-500"
+          active={false} />
       </div>
 
       {/* ── Bannière attestation post-création ── */}
@@ -324,11 +465,8 @@ export default function AttributionsPage() {
           <p className="text-sm text-emerald-800 flex-1">
             Attribution enregistrée. Téléchargez l'attestation de mise à disposition.
           </p>
-          <a
-            href={attributionService.attestationUrl(lastEmployeeId)}
-            target="_blank" rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition shrink-0"
-          >
+          <a href={attributionService.attestationUrl(lastEmployeeId)} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition shrink-0">
             <FileText size={12} /> Attestation
           </a>
           <button onClick={() => setLastEmployeeId(null)} className="text-emerald-400 hover:text-emerald-700 transition">
@@ -338,23 +476,63 @@ export default function AttributionsPage() {
       )}
 
       {/* ── Filtres ── */}
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un employé, matériel…" className="input-base pl-9" />
-        </div>
-        <div className="flex gap-1.5">
-          {(["", "ACTIVE", "CLOTUREE"] as const).map(v => (
-            <button key={v} onClick={() => setFiltre(v)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
-                filtre === v
-                  ? "bg-camublue-900 text-white border-camublue-900"
-                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
-              }`}>
-              {v === "" ? "Toutes" : v === "ACTIVE" ? "Actives" : "Clôturées"}
-            </button>
-          ))}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mb-4">
+        <div className="flex gap-3 flex-wrap items-center">
+
+          {/* Recherche avec suggestions */}
+          <div ref={searchRef} className="relative flex-1 min-w-52">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            {searchInput ? (
+              <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                <X size={14} />
+              </button>
+            ) : null}
+            <input value={searchInput} onChange={e => handleSearchInput(e.target.value)}
+              onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
+              placeholder="Rechercher employé, service, matériel…"
+              className="input-base pl-9 pr-8" />
+            {showSuggest && suggestions.length > 0 && (
+              <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                {suggestions.map((s, i) => (
+                  <button key={i} type="button"
+                    onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
+                    <Search size={12} className="text-gray-300 shrink-0" />
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+
+          {/* Filtre Statut */}
+          <div className="flex gap-1.5">
+            {(["", "ACTIVE", "CLOTUREE"] as const).map(v => (
+              <button key={v} onClick={() => setFiltre(v)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
+                  filtre === v
+                    ? "bg-camublue-900 text-white border-camublue-900"
+                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                }`}>
+                {v === "" ? "Toutes" : v === "ACTIVE" ? "Actives" : "Clôturées"}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtre Service */}
+          {services.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Filter size={13} className="text-gray-400 shrink-0" />
+              <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
+                className="input-base py-2 text-sm">
+                <option value="">Tous les services</option>
+                {services.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -376,7 +554,7 @@ export default function AttributionsPage() {
               <tr><td colSpan={6} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : grouped.length === 0 ? (
               <tr><td colSpan={6} className="py-12 text-center text-gray-400">Aucune attribution</td></tr>
-            ) : grouped.map(g => {
+            ) : paginatedGroups.map(g => {
               const hasActive  = g.attributions.some(a => a.statut === "ACTIVE");
               const earliest   = g.attributions.reduce((min, a) =>
                 a.date_attribution < min ? a.date_attribution : min,
@@ -444,6 +622,51 @@ export default function AttributionsPage() {
         </table>
       </div>
 
+      {/* ── Pagination ── */}
+      {!loading && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-xs text-gray-400">
+            {grouped.length === 0
+              ? "Aucun résultat"
+              : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, grouped.length)} sur ${grouped.length} employé(s)`}
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">«</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+              <ChevronLeft size={14} />
+            </button>
+            {(() => {
+              const w = 2;
+              const start = Math.max(1, page - w);
+              const end   = Math.min(totalPages, page + w);
+              return (
+                <>
+                  {start > 1 && <span className="px-1 text-gray-300 text-xs">…</span>}
+                  {Array.from({ length: end - start + 1 }, (_, i) => start + i).map(n => (
+                    <button key={n} onClick={() => setPage(n)}
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition ${
+                        n === page ? "bg-camublue-900 text-white shadow-sm" : "border border-gray-200 hover:bg-gray-50 text-gray-600"
+                      }`}>{n}</button>
+                  ))}
+                  {end < totalPages && <span className="px-1 text-gray-300 text-xs">…</span>}
+                </>
+              );
+            })()}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+              <ChevronRight size={14} />
+            </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">»</button>
+          </div>
+          <p className="text-xs text-gray-400">
+            Page <strong className="text-gray-700">{totalPages > 0 ? page : 0}</strong> / {totalPages}
+          </p>
+        </div>
+      )}
+
       {/* ══ Modal Détail (clic ligne) ══════════════════════════════════════════ */}
       {detailGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetailGroup(null)}>
@@ -497,7 +720,7 @@ export default function AttributionsPage() {
                       {a.materiel?.marque} {a.materiel?.modele}
                     </p>
                     <p className="text-xs text-gray-400 font-mono">
-                      {a.materiel?.numero_serie ?? a.materiel?.adresse_ip ?? "—"}
+                      {a.materiel?.numero_serie ?? a.materiel?.adresse_mac ?? "—"}
                     </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">
                       Attribué le {new Date(a.date_attribution).toLocaleDateString("fr-FR")}
@@ -730,7 +953,7 @@ export default function AttributionsPage() {
                                 {a.materiel?.marque} {a.materiel?.modele}
                               </p>
                               <p className="text-xs text-gray-400 font-mono">
-                                {a.materiel?.numero_serie ?? a.materiel?.adresse_ip ?? "—"}
+                                {a.materiel?.numero_serie ?? a.materiel?.adresse_mac ?? "—"}
                               </p>
                             </div>
                             <StatutBadge statut={a.statut} />
@@ -774,7 +997,7 @@ export default function AttributionsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{a.materiel?.marque} {a.materiel?.modele}</p>
-                        <p className="text-xs text-gray-400 font-mono">{a.materiel?.numero_serie ?? a.materiel?.adresse_ip ?? "—"}</p>
+                        <p className="text-xs text-gray-400 font-mono">{a.materiel?.numero_serie ?? a.materiel?.adresse_mac ?? "—"}</p>
                       </div>
                       <StatutBadge statut={a.statut} />
                     </button>
@@ -794,7 +1017,7 @@ export default function AttributionsPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-blue-700">Matériel sélectionné</p>
                       <p className="text-sm font-bold text-blue-900 truncate">{majAttr.materiel?.marque} {majAttr.materiel?.modele}</p>
-                      <p className="text-xs text-blue-500 font-mono">{majAttr.materiel?.numero_serie ?? majAttr.materiel?.adresse_ip ?? "—"}</p>
+                      <p className="text-xs text-blue-500 font-mono">{majAttr.materiel?.numero_serie ?? majAttr.materiel?.adresse_mac ?? "—"}</p>
                     </div>
                   </div>
 
@@ -839,7 +1062,7 @@ export default function AttributionsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{a.materiel?.marque} {a.materiel?.modele}</p>
-                        <p className="text-xs text-gray-400 font-mono">{a.materiel?.numero_serie ?? a.materiel?.adresse_ip ?? "—"}</p>
+                        <p className="text-xs text-gray-400 font-mono">{a.materiel?.numero_serie ?? a.materiel?.adresse_mac ?? "—"}</p>
                       </div>
                     </button>
                   ))}
@@ -861,7 +1084,7 @@ export default function AttributionsPage() {
                         {restituerAttr.materiel?.marque} {restituerAttr.materiel?.modele}
                       </p>
                       <p className="text-xs text-amber-600 font-mono">
-                        {restituerAttr.materiel?.numero_serie ?? restituerAttr.materiel?.adresse_ip ?? "—"}
+                        {restituerAttr.materiel?.numero_serie ?? restituerAttr.materiel?.adresse_mac ?? "—"}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
@@ -1031,7 +1254,7 @@ export default function AttributionsPage() {
                     <option value="">Sélectionner un matériel disponible…</option>
                     {materiels.map(m => (
                       <option key={m.id} value={m.id}>
-                        {m.marque} {m.modele || ""} — {m.numero_serie ?? m.adresse_ip ?? "sans identifiant"}
+                        {m.marque} {m.modele || ""} — {m.numero_serie ?? m.adresse_mac ?? "sans identifiant"}
                       </option>
                     ))}
                   </select>
@@ -1074,7 +1297,7 @@ export default function AttributionsPage() {
                                 {m.marque} {m.modele || ""}
                               </p>
                               <p className="text-xs text-gray-400 font-mono">
-                                {m.numero_serie ?? m.adresse_ip ?? "sans identifiant"}
+                                {m.numero_serie ?? m.adresse_mac ?? "sans identifiant"}
                               </p>
                             </div>
                           </label>
@@ -1125,6 +1348,264 @@ export default function AttributionsPage() {
           </div>
         </div>
       )}
+      {/* ══ Modal Export Excel ════════════════════════════════════════════════ */}
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-lg text-camublue-900">Exporter les attributions</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Fichier Excel (.xlsx) mis en forme · {items.length} attribution(s) chargées
+                </p>
+              </div>
+              <button onClick={() => setExportOpen(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-5">
+
+              {/* Période */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                  Période (date d'attribution)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Du</label>
+                    <input type="date" value={exportDebut} onChange={e => setExportDebut(e.target.value)} className="input-base" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Au</label>
+                    <input type="date" value={exportFin} onChange={e => setExportFin(e.target.value)} className="input-base" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Statut */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Statut</p>
+                <select value={exportStatut} onChange={e => setExportStatut(e.target.value)} className="input-base">
+                  <option value="">Tous</option>
+                  <option value="ACTIVE">Actives</option>
+                  <option value="CLOTUREE">Clôturées</option>
+                </select>
+              </div>
+
+              {/* Colonnes */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Colonnes à inclure</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setExportCols(new Set(ATTR_COLS.map(c => c.key)))}
+                      className="text-xs text-camublue-900 font-semibold hover:underline">Tout</button>
+                    <span className="text-gray-300">·</span>
+                    <button onClick={() => setExportCols(new Set())}
+                      className="text-xs text-gray-400 hover:underline">Aucun</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {ATTR_COLS.map(({ key, label }) => (
+                    <label key={key}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition text-sm
+                        ${exportCols.has(key)
+                          ? "bg-camublue-900/5 border-camublue-900/20 text-camublue-900 font-semibold"
+                          : "border-gray-100 text-gray-400 hover:bg-gray-50"}`}>
+                      <input type="checkbox" checked={exportCols.has(key)}
+                        onChange={() => toggleAttrCol(key)}
+                        className="accent-camublue-900 w-3.5 h-3.5 shrink-0" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">{exportCols.size} colonne(s) sélectionnée(s)</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setExportOpen(false)} disabled={exportLoading}
+                  className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50">
+                  Annuler
+                </button>
+                <button
+                  disabled={exportCols.size === 0 || exportLoading}
+                  onClick={async () => {
+                    setExportLoading(true);
+                    try {
+                      await attributionService.exportExcel({
+                        date_debut: exportDebut  || undefined,
+                        date_fin:   exportFin    || undefined,
+                        statut:     exportStatut || undefined,
+                        cols:       exportCols.size > 0 ? Array.from(exportCols).join(",") : undefined,
+                      });
+                      toast.success("Fichier Excel généré avec succès");
+                      setExportOpen(false);
+                    } catch {
+                      toast.error("Erreur lors de la génération");
+                    } finally {
+                      setExportLoading(false);
+                    }
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition"
+                >
+                  {exportLoading
+                    ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Génération…</>
+                    : <><Download size={14} /> Télécharger .xlsx</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Modèle Word ════════════════════════════════════════════════ */}
+      {modeleOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="font-bold text-lg text-camublue-900">Templates de documents</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Uploadez vos modèles Word (.docx) — les champs sont remplis automatiquement
+                </p>
+              </div>
+              <button onClick={() => setModeleOpen(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-6">
+
+              {/* Info générale */}
+              <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold mb-1">Comment ça marche ?</p>
+                  <p>Créez un document Word (.docx) avec des balises <code className="bg-blue-100 px-1 rounded font-mono">{"{{NOM}}"}</code> là où vous voulez les données. Le système détecte automatiquement toutes les balises et les remplace lors de la génération.</p>
+                </div>
+              </div>
+
+              {/* ── Section Attestation ── */}
+              {(["attestation", "decharge"] as const).map(docType => {
+                const info   = templatesInfo[docType];
+                const isAtt  = docType === "attestation";
+                const file   = isAtt ? attFile : decFile;
+                const setFile = isAtt ? setAttFile : setDecFile;
+                const loading = isAtt ? attLoading : decLoading;
+                const setLoading = isAtt ? setAttLoading : setDecLoading;
+                const title  = isAtt ? "Attestation de mise à disposition" : "Décharge";
+                const PLACEHOLDERS = isAtt
+                  ? ["NOM","PRENOM","MATRICULE","SERVICE","POSTE","DATE_JOUR","DATE_ATTRIBUTION","NB_MATERIELS","MATERIEL_1","MARQUE_1","MODELE_1","TYPE_1","SERIE_1","MAC_1","ETAT_1","DATE_ATTR_1"]
+                  : ["NOM","PRENOM","MATRICULE","SERVICE","POSTE","DATE_JOUR","MATERIEL","MARQUE","MODELE","TYPE","SERIE","MAC","ETAT_REMISE","DATE_ATTRIBUTION","DATE_RESTITUTION","MOTIF","NOTES"];
+
+                return (
+                  <div key={docType} className="border border-gray-100 rounded-2xl overflow-hidden">
+                    {/* Header section */}
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText size={15} className="text-camublue-900" />
+                        <p className="text-sm font-bold text-gray-700">{title}</p>
+                      </div>
+                      {info?.uploaded && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ Template actif · {info.size_kb} ko
+                          </span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await templateService.delete(docType);
+                                toast.success("Template supprimé");
+                                loadTemplatesInfo();
+                              } catch { toast.error("Erreur"); }
+                            }}
+                            className="p-1 rounded-lg text-red-400 hover:bg-red-50 transition">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      {/* Balises disponibles */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1.5">Balises disponibles dans votre template :</p>
+                        <div className="flex flex-wrap gap-1">
+                          {PLACEHOLDERS.map(p => (
+                            <code key={p} className="text-[10px] bg-camublue-900/5 text-camublue-900 px-1.5 py-0.5 rounded font-mono border border-camublue-900/10">
+                              {`{{${p}}}`}
+                            </code>
+                          ))}
+                          {isAtt && <code className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">…_2, …_3 etc.</code>}
+                        </div>
+                      </div>
+
+                      {/* Balises détectées dans le template uploadé */}
+                      {info?.uploaded && info.placeholders.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-emerald-600 mb-1">Balises détectées dans votre fichier :</p>
+                          <div className="flex flex-wrap gap-1">
+                            {info.placeholders.map(p => (
+                              <code key={p} className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-mono border border-emerald-200">
+                                {`{{${p}}}`}
+                              </code>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Upload */}
+                      <div>
+                        <label className={`flex items-center gap-3 w-full px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition
+                          ${file ? "border-camublue-900/40 bg-camublue-900/5" : "border-gray-200 hover:border-camublue-900/30 hover:bg-gray-50"}`}>
+                          <Upload size={16} className={file ? "text-camublue-900" : "text-gray-300"} />
+                          <div className="flex-1 min-w-0">
+                            {file
+                              ? <span className="text-sm font-semibold text-camublue-900 truncate">{file.name}</span>
+                              : <span className="text-sm text-gray-400">{info?.uploaded ? "Remplacer le template…" : "Choisir un fichier .docx…"}</span>}
+                          </div>
+                          <input type="file" accept=".docx" className="hidden"
+                            onChange={e => setFile(e.target.files?.[0] ?? null)} />
+                        </label>
+                      </div>
+
+                      {/* Bouton upload */}
+                      <button
+                        disabled={!file || loading}
+                        onClick={async () => {
+                          if (!file) return;
+                          setLoading(true);
+                          try {
+                            const res = await templateService.upload(docType, file);
+                            toast.success(`Template "${title}" enregistré · ${res.placeholders.length} balise(s) détectée(s)`);
+                            setFile(null);
+                            loadTemplatesInfo();
+                          } catch (e: any) {
+                            toast.error(e?.response?.data?.detail ?? "Erreur lors de l'upload");
+                          } finally { setLoading(false); }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition"
+                      >
+                        {loading
+                          ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Upload…</>
+                          : <><Upload size={14} /> Enregistrer ce template</>}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button onClick={() => setModeleOpen(false)}
+                className="w-full border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AppLayout>
   );
 }

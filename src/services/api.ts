@@ -9,7 +9,7 @@ const ax = axios.create({ baseURL: BASE });
 
 // ── Matériels ─────────────────────────────────────────────────────────────────
 export const materielService = {
-  getAll:   (params?: { statut?: string; search?: string }) => ax.get<Materiel[]>("/materiels", { params }).then(r => r.data),
+  getAll:   (params?: { statut?: string; type_materiel?: string; etat?: string; search?: string }) => ax.get<Materiel[]>("/materiels", { params }).then(r => r.data),
   get:      (id: number)    => ax.get<Materiel>(`/materiels/${id}`).then(r => r.data),
   create:   (data: any)     => ax.post<Materiel>("/materiels", data).then(r => r.data),
   update:   (id: number, data: any) => ax.patch<Materiel>(`/materiels/${id}`, data).then(r => r.data),
@@ -17,6 +17,32 @@ export const materielService = {
   stats:       ()           => ax.get("/materiels/stats/summary").then(r => r.data),
   statsByType: ()           => ax.get("/materiels/stats/par-type").then(r => r.data),
   statsByBrand:()           => ax.get("/materiels/stats/par-marque").then(r => r.data),
+  exportExcel: async (params: {
+    statut?: string; type_materiel?: string; etat?: string; search?: string;
+    date_debut?: string; date_fin?: string; cols?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params.statut)        q.set("statut",        params.statut);
+    if (params.type_materiel) q.set("type_materiel", params.type_materiel);
+    if (params.etat)          q.set("etat",          params.etat);
+    if (params.search)        q.set("search",        params.search);
+    if (params.date_debut)    q.set("date_debut",    params.date_debut);
+    if (params.date_fin)      q.set("date_fin",      params.date_fin);
+    if (params.cols)          q.set("cols",          params.cols);
+    const resp = await ax.get(`/materiels/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href  = url;
+    let fname  = "materiels";
+    if (params.date_debut) fname += `_du_${params.date_debut}`;
+    if (params.date_fin)   fname += `_au_${params.date_fin}`;
+    link.setAttribute("download", `${fname}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
   import:   (file: File)   => {
     const form = new FormData();
     form.append("file", file);
@@ -29,7 +55,7 @@ export const materielService = {
 // ── Attributions ──────────────────────────────────────────────────────────────
 export const attributionService = {
   getAll:         (params?: { employee_id?: number; statut?: string }) =>
-    ax.get<Attribution[]>("/attributions", { params }).then(r => r.data),
+    ax.get<Attribution[]>("/attributions/", { params }).then(r => r.data),
   getByEmployee:  (id: number) => ax.get<Attribution[]>(`/attributions/employee/${id}`).then(r => r.data),
   getByMateriel:  (id: number) => ax.get<Attribution[]>(`/attributions/materiel/${id}`).then(r => r.data),
   transferer:     (id: number, data: any) => ax.post(`/attributions/${id}/transferer`, data).then(r => r.data),
@@ -39,8 +65,67 @@ export const attributionService = {
   restituer:      (id: number, data: any) =>
     ax.post<Attribution>(`/attributions/${id}/restitution`, data).then(r => r.data),
   stats:           ()           => ax.get("/attributions/stats/summary").then(r => r.data),
-  dechargeUrl:     (id: number) => `${BASE}/attributions/${id}/decharge`,
-  attestationUrl:  (employeeId: number) => `${BASE}/attributions/attestation/employee/${employeeId}`,
+  dechargeUrl:     (id: number) => `${BASE}/templates/decharge/${id}`,
+  attestationUrl:  (employeeId: number) => `${BASE}/templates/attestation/employee/${employeeId}`,
+  exportExcel: async (params?: { date_debut?: string; date_fin?: string; statut?: string; cols?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.date_debut) q.set("date_debut", params.date_debut);
+    if (params?.date_fin)   q.set("date_fin",   params.date_fin);
+    if (params?.statut)     q.set("statut",     params.statut);
+    if (params?.cols)       q.set("cols",       params.cols);
+    const response = await ax.get(`/attributions/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([response.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href  = url;
+    let fname  = "attributions";
+    if (params?.date_debut) fname += `_du_${params.date_debut}`;
+    if (params?.date_fin)   fname += `_au_${params.date_fin}`;
+    link.setAttribute("download", `${fname}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+  exportCsv: async (params?: { date_debut?: string; date_fin?: string; statut?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.date_debut) q.set("date_debut", params.date_debut);
+    if (params?.date_fin)   q.set("date_fin",   params.date_fin);
+    if (params?.statut)     q.set("statut",     params.statut);
+    const response = await ax.get(`/attributions/export?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    const suffix = (params?.date_debut ? `_${params.date_debut}` : "") + (params?.date_fin ? `_au_${params.date_fin}` : "");
+    link.setAttribute("download", `attributions${suffix}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+  exportWithTemplate: async (
+    file: File,
+    params?: { date_debut?: string; date_fin?: string; statut?: string },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.date_debut) q.set("date_debut", params.date_debut);
+    if (params?.date_fin)   q.set("date_fin",   params.date_fin);
+    if (params?.statut)     q.set("statut",     params.statut);
+    const form = new FormData();
+    form.append("file", file);
+    const response = await ax.post(`/attributions/export-template?${q.toString()}`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+      responseType: "blob",
+    });
+    const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "attributions_filled.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── Téléphonie ────────────────────────────────────────────────────────────────
@@ -55,6 +140,20 @@ export const simService = {
   desaffecter: (id: number, motif?: string) =>
     ax.patch<AffectationSIM>(`/telephonie/sims/${id}/desaffecter`, { motif: motif || null }).then(r => r.data),
   historique:  (id: number) => ax.get<AffectationSIM[]>(`/telephonie/sims/${id}/historique`).then(r => r.data),
+  exportExcel: async (params?: { categorie?: string; statut?: string; search?: string; cols?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.categorie) q.set("categorie", params.categorie);
+    if (params?.statut)    q.set("statut",    params.statut);
+    if (params?.search)    q.set("search",    params.search);
+    if (params?.cols)      q.set("cols",      params.cols);
+    const resp = await ax.get(`/telephonie/sims/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href  = url; link.setAttribute("download", "numeros_sim.xlsx");
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
+  },
   exportCsv: async (params?: { categorie?: string; statut?: string; search?: string }) => {
     const q = new URLSearchParams();
     if (params?.categorie) q.set("categorie", params.categorie);
@@ -147,6 +246,28 @@ export const factureService = {
   },
   delete:       (id: number) => ax.delete(`/factures/${id}`),
   statsMensuel: (annee: number) => ax.get("/factures/stats/mensuel", { params: { annee } }).then(r => r.data),
+};
+
+// ── Templates Word ────────────────────────────────────────────────────────────
+export const templateService = {
+  getInfo: () => ax.get<Record<string, {
+    uploaded: boolean; size_kb?: number; placeholders: string[];
+  }>>("/templates/info").then(r => r.data),
+
+  upload: async (docType: "attestation" | "decharge", file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ message: string; filename: string; placeholders: string[] }>(
+      `/templates/${docType}/upload`, form,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
+
+  delete: (docType: "attestation" | "decharge") =>
+    ax.delete(`/templates/${docType}`).then(r => r.data),
+
+  attestationUrl:  (employeeId: number)   => `${BASE}/templates/attestation/employee/${employeeId}`,
+  dechargeUrl:     (attributionId: number) => `${BASE}/templates/decharge/${attributionId}`,
 };
 
 // ── Employés (proxy eRh-App) ──────────────────────────────────────────────────

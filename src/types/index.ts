@@ -6,7 +6,7 @@ export type TypeMateriel =
   | "ONDULEUR" | "AUTRE";
 
 export type EtatMateriel  = "NEUF" | "BON" | "USAGE" | "DEFECTUEUX";
-export type StatutMateriel = "DISPONIBLE" | "ATTRIBUE" | "MAINTENANCE" | "REFORME";
+export type StatutMateriel = "DISPONIBLE" | "ATTRIBUE" | "MAINTENANCE" | "EN_PANNE" | "REFORME";
 
 export interface AttributionActiveInfo {
   employee_nom:       string;
@@ -22,7 +22,7 @@ export interface Materiel {
   marque:             string;
   modele:             string | null;
   numero_serie:       string | null;
-  adresse_ip:         string | null;
+  adresse_mac:        string | null;
   numero_bon_cmd:     string | null;
   etat:               EtatMateriel;
   statut:             StatutMateriel;
@@ -60,7 +60,7 @@ export interface Attribution {
 // ── Téléphonie ────────────────────────────────────────────────────────────────
 
 export type CategorieSIM = "EMPLOYE" | "M2M_SITE" | "M2M_VEHICULE";
-export type StatutSIM    = "ACTIVE" | "INACTIVE" | "SUSPENDUE";
+export type StatutSIM    = "ACTIVE" | "INACTIVE" | "SUSPENDUE" | "RESILIE" | "CEDE";
 
 export interface NumeroSIM {
   id:                 number;

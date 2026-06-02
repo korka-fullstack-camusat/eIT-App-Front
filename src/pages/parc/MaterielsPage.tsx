@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { materielService, attributionService, employeeService } from "@/services/api";
@@ -9,6 +9,7 @@ const STATUT_COLORS: Record<string, string> = {
   DISPONIBLE:  "bg-emerald-100 text-emerald-700",
   ATTRIBUE:    "bg-blue-100 text-blue-700",
   MAINTENANCE: "bg-amber-100 text-amber-700",
+  EN_PANNE:    "bg-orange-100 text-orange-700",
   REFORME:     "bg-red-100 text-red-700",
 };
 
@@ -26,18 +27,61 @@ const PAGE_SIZE = 10;
 const EMPTY_FORM = {
   type_materiel:    "ORDINATEUR_PORTABLE",
   marque:           "",
+  modele:           "",
   numero_serie:     "",
-  adresse_ip:       "",
+  adresse_mac:      "",
   numero_bon_cmd:   "",
   etat:             "BON",
   date_acquisition: "",
 };
 
+// ── Carte statistique ─────────────────────────────────────────────────────────
+function StatCard({
+  label, value, color, onClick, active,
+}: { label: string; value: number | string; color: string; onClick?: () => void; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 min-w-[110px] rounded-2xl border p-4 flex flex-col items-center justify-center gap-0.5 transition select-none
+        ${active ? `${color} border-transparent shadow-md scale-[1.03]` : "bg-white border-gray-100 hover:shadow-sm hover:border-gray-200"}
+        ${onClick ? "cursor-pointer" : "cursor-default"}`}
+    >
+      <p className={`text-3xl font-black leading-none ${active ? "text-white" : "text-gray-800"}`}>{value}</p>
+      <p className={`text-xs font-semibold mt-1 ${active ? "text-white/80" : "text-gray-400"}`}>{label}</p>
+    </button>
+  );
+}
+
 export default function MaterielsPage() {
   const [items,    setItems]    = useState<Materiel[]>([]);
-  const [search,   setSearch]   = useState("");
-  const [statut,   setStatut]   = useState("");
   const [loading,  setLoading]  = useState(true);
+
+  // ── Filtres ──────────────────────────────────────────────────────────────────
+  const [searchInput, setSearchInput] = useState(""); // valeur brute du champ
+  const [search,      setSearch]      = useState(""); // valeur debounced envoyée à l'API
+  const [statut,      setStatut]      = useState("");
+  const [typeFilter,  setTypeFilter]  = useState("");
+  const [etatFilter,  setEtatFilter]  = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Stats ────────────────────────────────────────────────────────────────────
+  const [stats, setStats] = useState<Record<string, number>>({});
+  const loadStats = useCallback(() => {
+    materielService.stats().then(setStats).catch(() => {});
+  }, []);
+
+  // ── Suggestions de recherche ─────────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggest(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // modal formulaire (ajout / modification)
   const [formOpen, setFormOpen] = useState(false);
@@ -76,17 +120,78 @@ export default function MaterielsPage() {
   const [importFile,    setImportFile]    = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importResult,  setImportResult]  = useState<{ created: number; errors: { ligne: number; message: string }[] } | null>(null);
+
+  const [exportLoading, setExportLoading] = useState(false);
+
+  // modal Export personnalisé
+  const ALL_COLS = [
+    { key: "id",          label: "ID" },
+    { key: "type",        label: "Type" },
+    { key: "marque",      label: "Marque" },
+    { key: "modele",      label: "Modèle" },
+    { key: "serie",       label: "N° Série" },
+    { key: "mac",         label: "Adresse MAC" },
+    { key: "po",          label: "N° PO" },
+    { key: "etat",        label: "État" },
+    { key: "statut",      label: "Statut" },
+    { key: "acquisition", label: "Date Acquisition" },
+    { key: "assigne",     label: "Assigné à" },
+  ] as const;
+  type ColKey = (typeof ALL_COLS)[number]["key"];
+
+  const [exportOpen,      setExportOpen]      = useState(false);
+  const [exportDateDebut, setExportDateDebut] = useState("");
+  const [exportDateFin,   setExportDateFin]   = useState("");
+  const [exportCols,      setExportCols]      = useState<Set<ColKey>>(
+    new Set(ALL_COLS.map(c => c.key))
+  );
+  const toggleCol = (k: ColKey) =>
+    setExportCols(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
+
   // pagination
   const [page, setPage] = useState(1);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
-    materielService.getAll({ search, statut: statut || undefined })
-      .then(setItems).catch(() => toast.error("Erreur de chargement"))
-      .finally(() => setLoading(false));
-  };
+    materielService.getAll({
+      search:        search        || undefined,
+      statut:        statut        || undefined,
+      type_materiel: typeFilter    || undefined,
+      etat:          etatFilter    || undefined,
+    })
+      .then(data => { setItems(data); })
+      .catch(() => toast.error("Erreur de chargement"))
+      .finally(() => { setLoading(false); loadStats(); });
+  }, [search, statut, typeFilter, etatFilter]);
 
-  useEffect(() => { load(); setPage(1); }, [search, statut]);
+  useEffect(() => { load(); setPage(1); }, [search, statut, typeFilter, etatFilter]);
+  useEffect(() => { loadStats(); }, []);
+
+  // Debounce de la saisie dans le champ recherche
+  const handleSearchInput = (val: string) => {
+    setSearchInput(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!val.trim()) {
+      setSearch("");
+      setSuggestions([]);
+      setShowSuggest(false);
+      return;
+    }
+    // Suggestions locales immédiates (depuis items déjà chargés)
+    const lower = val.toLowerCase();
+    const sugg = Array.from(new Set(
+      items
+        .flatMap(m => [m.marque, m.modele, m.numero_serie].filter(Boolean) as string[])
+        .filter(s => s.toLowerCase().includes(lower))
+    )).slice(0, 6);
+    setSuggestions(sugg);
+    setShowSuggest(sugg.length > 0);
+    // Appel API debounced (300 ms)
+    searchTimer.current = setTimeout(() => {
+      setSearch(val);
+      setShowSuggest(false);
+    }, 300);
+  };
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -99,10 +204,12 @@ export default function MaterielsPage() {
     setForm({
       type_materiel:    m.type_materiel,
       marque:           m.marque,
+      modele:           m.modele           ?? "",
       numero_serie:     m.numero_serie     ?? "",
-      adresse_ip:       m.adresse_ip       ?? "",
+      adresse_mac:      m.adresse_mac      ?? "",
       numero_bon_cmd:   m.numero_bon_cmd   ?? "",
       etat:             m.etat,
+      statut:           m.statut,
       date_acquisition: m.date_acquisition ?? "",
     });
     setEditing(m.id);
@@ -111,17 +218,18 @@ export default function MaterielsPage() {
 
   const handleSubmit = async () => {
     if (!form.marque.trim()) { toast.error("La marque est obligatoire"); return; }
-    const showIp = TYPES_WITH_IP.includes(form.type_materiel);
-    const payload = {
+    const showMac = TYPES_WITH_IP.includes(form.type_materiel);
+    const payload: any = {
       type_materiel:    form.type_materiel,
       marque:           form.marque.trim(),
-      modele:           "",
-      numero_serie:     !showIp ? (form.numero_serie || null) : null,
-      adresse_ip:       showIp  ? (form.adresse_ip   || null) : null,
+      modele:           form.modele?.trim() || "",
+      numero_serie:     !showMac ? (form.numero_serie || null) : null,
+      adresse_mac:      showMac  ? (form.adresse_mac  || null) : null,
       numero_bon_cmd:   form.numero_bon_cmd || null,
       etat:             form.etat,
       date_acquisition: form.date_acquisition || null,
     };
+    if (editing && form.statut) payload.statut = form.statut;
     try {
       if (editing) await materielService.update(editing, payload);
       else         await materielService.create(payload);
@@ -234,54 +342,57 @@ export default function MaterielsPage() {
     }
   };
 
-  const showIpField = TYPES_WITH_IP.includes(form.type_materiel);
+  const showMacField = TYPES_WITH_IP.includes(form.type_materiel);
 
   // ── Pagination ──────────────────────────────────────────────────────────────
   const totalPages  = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const paginated   = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // ── Export CSV ──────────────────────────────────────────────────────────────
-  const handleExport = () => {
-    const headers = ["ID","Type","Marque","Modèle","N° Série","Adresse IP","N° PO","État","Statut","Acquisition","Assigné à"];
-    const rows = items.map(m => [
-      m.id,
-      TYPE_LABELS[m.type_materiel] ?? m.type_materiel,
-      m.marque,
-      m.modele ?? "",
-      m.numero_serie ?? "",
-      m.adresse_ip ?? "",
-      m.numero_bon_cmd ?? "",
-      m.etat,
-      m.statut,
-      m.date_acquisition ?? "",
-      m.attribution_active ? `${m.attribution_active.employee_prenom} ${m.attribution_active.employee_nom}` : "",
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `materiels_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`${items.length} matériel(s) exporté(s)`);
+  // ── Export Excel stylisé (backend) ─────────────────────────────────────────
+  const runExport = async () => {
+    setExportLoading(true);
+    try {
+      await materielService.exportExcel({
+        statut:        statut        || undefined,
+        type_materiel: typeFilter    || undefined,
+        etat:          etatFilter    || undefined,
+        search:        search        || undefined,
+        date_debut:    exportDateDebut || undefined,
+        date_fin:      exportDateFin   || undefined,
+        cols:          exportCols.size > 0 ? Array.from(exportCols).join(",") : undefined,
+      });
+      toast.success("Fichier Excel généré avec succès");
+      setExportOpen(false);
+    } catch {
+      toast.error("Erreur lors de la génération du fichier");
+    } finally {
+      setExportLoading(false);
+    }
   };
+
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-6">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Gestion des matériels</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{items.length} équipement(s)</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {loading ? "Chargement…" : `${items.length} équipement(s)`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm font-semibold transition">
-            <Download size={15} /> Exporter
+          <button onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <FileSpreadsheet size={15} />
+            <span>Exporter</span>
+            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
           </button>
           <button onClick={() => setImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm font-semibold transition">
-            <Upload size={15} /> Importer
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            <FileSpreadsheet size={15} />
+            <span>Importer</span>
+            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
           </button>
           <button onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
@@ -290,21 +401,91 @@ export default function MaterielsPage() {
         </div>
       </div>
 
-      {/* Filtres */}
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
-            className="input-base pl-9" />
+      {/* ── Cartes statistiques ── */}
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatCard label="Total" value={stats.total ?? "—"} color="bg-camublue-900"
+          onClick={() => { setStatut(""); setTypeFilter(""); setEtatFilter(""); setSearchInput(""); setSearch(""); }}
+          active={!statut && !typeFilter && !etatFilter && !search} />
+        <StatCard label="Disponibles" value={stats.disponible ?? "—"} color="bg-emerald-500"
+          onClick={() => setStatut(statut === "DISPONIBLE" ? "" : "DISPONIBLE")}
+          active={statut === "DISPONIBLE"} />
+        <StatCard label="Attribués" value={stats.attribue ?? "—"} color="bg-blue-500"
+          onClick={() => setStatut(statut === "ATTRIBUE" ? "" : "ATTRIBUE")}
+          active={statut === "ATTRIBUE"} />
+        <StatCard label="Maintenance" value={stats.maintenance ?? "—"} color="bg-amber-500"
+          onClick={() => setStatut(statut === "MAINTENANCE" ? "" : "MAINTENANCE")}
+          active={statut === "MAINTENANCE"} />
+        <StatCard label="En panne" value={stats.en_panne ?? "—"} color="bg-orange-500"
+          onClick={() => setStatut(statut === "EN_PANNE" ? "" : "EN_PANNE")}
+          active={statut === "EN_PANNE"} />
+        <StatCard label="Réformés" value={stats.reforme ?? "—"} color="bg-red-500"
+          onClick={() => setStatut(statut === "REFORME" ? "" : "REFORME")}
+          active={statut === "REFORME"} />
+      </div>
+
+      {/* ── Filtres avancés ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mb-4">
+        <div className="flex gap-3 flex-wrap items-center">
+
+          {/* Barre de recherche avec suggestions */}
+          <div ref={searchRef} className="relative flex-1 min-w-52">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            {loading && searchInput ? (
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />
+            ) : searchInput ? (
+              <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                <X size={14} />
+              </button>
+            ) : null}
+            <input
+              value={searchInput}
+              onChange={e => handleSearchInput(e.target.value)}
+              onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
+              placeholder="Rechercher marque, modèle, n° série…"
+              className="input-base pl-9 pr-8"
+            />
+            {/* Suggestions dropdown */}
+            {showSuggest && suggestions.length > 0 && (
+              <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                {suggestions.map((s, i) => (
+                  <button key={i} type="button"
+                    onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
+                    <Search size={12} className="text-gray-300 shrink-0" />
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Séparateur */}
+          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+
+          {/* Filtre Type */}
+          <div className="flex items-center gap-1.5 min-w-[160px]">
+            <Filter size={13} className="text-gray-400 shrink-0" />
+            <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }}
+              className="input-base py-2 flex-1 text-sm">
+              <option value="">Tous les types</option>
+              {Object.entries(TYPE_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtre État */}
+          <select value={etatFilter} onChange={e => { setEtatFilter(e.target.value); setPage(1); }}
+            className="input-base py-2 w-auto text-sm">
+            <option value="">Tous les états</option>
+            <option value="NEUF">Neuf</option>
+            <option value="BON">Bon</option>
+            <option value="USAGE">Usagé</option>
+            <option value="DEFECTUEUX">Défectueux</option>
+          </select>
+
         </div>
-        <select value={statut} onChange={e => setStatut(e.target.value)}
-          className="input-base w-auto px-3 py-2.5">
-          <option value="">Tous les statuts</option>
-          <option value="DISPONIBLE">Disponible</option>
-          <option value="ATTRIBUE">Attribué</option>
-          <option value="MAINTENANCE">Maintenance</option>
-          <option value="REFORME">Réformé</option>
-        </select>
       </div>
 
       {/* Tableau */}
@@ -312,7 +493,7 @@ export default function MaterielsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              {["Type","Marque","N° Série / IP","État","Statut","Assigné à","Actions"].map(h => (
+              {["Type","Marque / Modèle","N° Série / MAC","État","Statut","Assigné à","Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -326,18 +507,27 @@ export default function MaterielsPage() {
               <tr key={m.id} onClick={() => setDetailItem(m)}
                 className="hover:bg-gray-50/50 transition cursor-pointer">
                 <td className="px-4 py-3 font-medium text-gray-700">{TYPE_LABELS[m.type_materiel] ?? m.type_materiel}</td>
-                <td className="px-4 py-3 font-semibold text-gray-800">{m.marque}</td>
+                <td className="px-4 py-3">
+                  <p className="font-semibold text-gray-800">{m.marque}</p>
+                  {m.modele && <p className="text-xs text-gray-400">{m.modele}</p>}
+                </td>
                 <td className="px-4 py-3 font-mono text-xs">
-                  {m.adresse_ip
-                    ? <span className="text-blue-600">{m.adresse_ip}</span>
+                  {m.adresse_mac
+                    ? <span className="text-blue-600">{m.adresse_mac}</span>
                     : m.numero_serie
                     ? <span className="text-gray-500">{m.numero_serie}</span>
                     : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-600">{m.etat}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUT_COLORS[m.statut]}`}>
-                    {m.statut}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUT_COLORS[m.statut]}`}>
+                    {m.statut === "EN_PANNE" && <AlertTriangle size={10} />}
+                    {m.statut === "DISPONIBLE" ? "Disponible"
+                      : m.statut === "ATTRIBUE"    ? "Attribué"
+                      : m.statut === "MAINTENANCE" ? "Maintenance"
+                      : m.statut === "EN_PANNE"    ? "En panne"
+                      : m.statut === "REFORME"     ? "Réformé"
+                      : m.statut}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -364,30 +554,67 @@ export default function MaterielsPage() {
         </table>
       </div>
 
-      {/* Pagination */}
-      {!loading && items.length > PAGE_SIZE && (
+      {/* ── Pagination ── */}
+      {!loading && (
         <div className="flex items-center justify-between mt-4 px-1">
+          {/* Infos */}
           <p className="text-xs text-gray-400">
-            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, items.length)} sur {items.length}
+            {items.length === 0
+              ? "Aucun résultat"
+              : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, items.length)} sur ${items.length} matériel(s)`}
           </p>
+
+          {/* Contrôles */}
           <div className="flex items-center gap-1">
+            {/* Première page */}
+            <button onClick={() => setPage(1)} disabled={page === 1}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">
+              «
+            </button>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
               <ChevronLeft size={14} />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
-              <button key={n} onClick={() => setPage(n)}
-                className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
-                  n === page ? "bg-camublue-900 text-white" : "border border-gray-200 hover:bg-gray-50 text-gray-600"
-                }`}>
-                {n}
-              </button>
-            ))}
+
+            {/* Numéros de page (fenêtre glissante de 5) */}
+            {(() => {
+              const window = 2;
+              const start  = Math.max(1, page - window);
+              const end    = Math.min(totalPages, page + window);
+              const pages  = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+              return (
+                <>
+                  {start > 1 && <span className="px-1 text-gray-300 text-xs">…</span>}
+                  {pages.map(n => (
+                    <button key={n} onClick={() => setPage(n)}
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition ${
+                        n === page
+                          ? "bg-camublue-900 text-white shadow-sm"
+                          : "border border-gray-200 hover:bg-gray-50 text-gray-600"
+                      }`}>
+                      {n}
+                    </button>
+                  ))}
+                  {end < totalPages && <span className="px-1 text-gray-300 text-xs">…</span>}
+                </>
+              );
+            })()}
+
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
               <ChevronRight size={14} />
             </button>
+            {/* Dernière page */}
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">
+              »
+            </button>
           </div>
+
+          {/* Page X / N */}
+          <p className="text-xs text-gray-400">
+            Page <strong className="text-gray-700">{totalPages > 0 ? page : 0}</strong> / {totalPages}
+          </p>
         </div>
       )}
 
@@ -431,7 +658,7 @@ export default function MaterielsPage() {
                   { label: "Marque",      value: detailItem.marque },
                   { label: "Modèle",      value: detailItem.modele },
                   { label: "N° Série",    value: detailItem.numero_serie },
-                  { label: "Adresse IP",  value: detailItem.adresse_ip },
+                  { label: "Adresse MAC", value: detailItem.adresse_mac },
                 ].filter(r => r.value).map(row => (
                   <div key={row.label} className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">{row.label}</span>
@@ -939,13 +1166,20 @@ export default function MaterielsPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Modèle</label>
+                <input type="text" value={form.modele}
+                  onChange={e => setForm((p: any) => ({ ...p, modele: e.target.value }))}
+                  placeholder="Latitude 5420, EliteBook 840…" className="input-base" />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                  {showIpField ? "Adresse IP" : "N° Série"}
+                  {showMacField ? "Adresse MAC" : "N° Série"}
                 </label>
-                {showIpField ? (
-                  <input type="text" value={form.adresse_ip}
-                    onChange={e => setForm((p: any) => ({ ...p, adresse_ip: e.target.value }))}
-                    placeholder="192.168.1.10" className="input-base" />
+                {showMacField ? (
+                  <input type="text" value={form.adresse_mac}
+                    onChange={e => setForm((p: any) => ({ ...p, adresse_mac: e.target.value }))}
+                    placeholder="AA:BB:CC:DD:EE:FF" className="input-base" />
                 ) : (
                   <input type="text" value={form.numero_serie}
                     onChange={e => setForm((p: any) => ({ ...p, numero_serie: e.target.value }))}
@@ -980,6 +1214,26 @@ export default function MaterielsPage() {
                 </div>
               </div>
 
+              {/* Statut — uniquement en mode édition */}
+              {editing && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Statut</label>
+                  <select value={form.statut ?? ""}
+                    onChange={e => setForm((p: any) => ({ ...p, statut: e.target.value || undefined }))}
+                    className="input-base">
+                    <option value="DISPONIBLE">Disponible</option>
+                    <option value="MAINTENANCE">Maintenance</option>
+                    <option value="EN_PANNE">En panne</option>
+                    <option value="REFORME">Réformé</option>
+                  </select>
+                  {form.statut === "EN_PANNE" && (
+                    <p className="mt-1.5 text-xs text-orange-600 flex items-center gap-1">
+                      <AlertTriangle size={11} /> Ce matériel ne pourra plus être attribué tant qu'il est en panne.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setFormOpen(false)}
                   className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
@@ -988,6 +1242,106 @@ export default function MaterielsPage() {
                 <button onClick={handleSubmit}
                   className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">
                   Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Export personnalisé ─────────────────────────────────────── */}
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-lg text-camublue-900">Exporter les matériels</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Fichier Excel (.xlsx) mis en forme · {items.length} matériel(s) chargés
+                </p>
+              </div>
+              <button onClick={() => setExportOpen(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+
+              {/* Période */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                  Période (date d'acquisition)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Du</label>
+                    <input type="date" value={exportDateDebut}
+                      onChange={e => setExportDateDebut(e.target.value)}
+                      className="input-base" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Au</label>
+                    <input type="date" value={exportDateFin}
+                      onChange={e => setExportDateFin(e.target.value)}
+                      className="input-base" />
+                  </div>
+                </div>
+                {(exportDateDebut || exportDateFin) && (() => {
+                  const n = items.filter(m =>
+                    (!exportDateDebut || (m.date_acquisition && m.date_acquisition >= exportDateDebut)) &&
+                    (!exportDateFin   || (m.date_acquisition && m.date_acquisition <= exportDateFin))
+                  ).length;
+                  return (
+                    <p className="text-xs text-camublue-900 font-semibold mt-1.5">
+                      → {n} matériel(s) correspondant à cette période
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {/* Colonnes */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Colonnes à inclure</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setExportCols(new Set(ALL_COLS.map(c => c.key)))}
+                      className="text-xs text-camublue-900 font-semibold hover:underline">Tout</button>
+                    <span className="text-gray-300">·</span>
+                    <button onClick={() => setExportCols(new Set())}
+                      className="text-xs text-gray-400 hover:underline">Aucun</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {ALL_COLS.map(({ key, label }) => (
+                    <label key={key}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition text-sm
+                        ${exportCols.has(key)
+                          ? "bg-camublue-900/5 border-camublue-900/20 text-camublue-900 font-semibold"
+                          : "border-gray-100 text-gray-400 hover:bg-gray-50"}`}>
+                      <input type="checkbox" checked={exportCols.has(key)}
+                        onChange={() => toggleCol(key)}
+                        className="accent-camublue-900 w-3.5 h-3.5 shrink-0" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">{exportCols.size} colonne(s) sélectionnée(s)</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setExportOpen(false)} disabled={exportLoading}
+                  className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50">
+                  Annuler
+                </button>
+                <button
+                  disabled={exportCols.size === 0 || exportLoading}
+                  onClick={runExport}
+                  className="flex-1 flex items-center justify-center gap-2 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition">
+                  {exportLoading
+                    ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Génération…</>
+                    : <><Download size={14} /> Télécharger .xlsx</>}
                 </button>
               </div>
             </div>
@@ -1052,7 +1406,7 @@ export default function MaterielsPage() {
                   </label>
                   <div className="text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
                     <p className="font-semibold text-gray-600">Colonnes attendues :</p>
-                    <p className="font-mono">Type ; Marque ; N° Série ; Adresse IP ; N° PO ; État ; Acquisition</p>
+                    <p className="font-mono">Type ; Marque ; Modèle ; N° Série ; Adresse MAC ; N° PO ; État ; Acquisition</p>
                   </div>
                   <div className="flex gap-3 pt-1">
                     <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); }}
