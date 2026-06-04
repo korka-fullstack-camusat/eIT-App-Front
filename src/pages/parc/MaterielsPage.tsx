@@ -374,7 +374,7 @@ export default function MaterielsPage() {
   return (
     <AppLayout>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Gestion des matériels</h1>
           <p className="text-gray-500 text-sm mt-0.5">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Upload, ChevronDown, AlertCircle, CheckCircle2, Trash2, X, FileText, Receipt } from "lucide-react";
+import { Upload, ChevronDown, AlertCircle, CheckCircle2, Trash2, X, FileText, Receipt, Download, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { factureService } from "@/services/api";
@@ -14,11 +14,19 @@ const EMPTY_FORM = () => ({
   notes:     "",
 });
 
+const PAGE_SIZE = 6;
+
 export default function FacturesPage() {
   const [factures,     setFactures]     = useState<FactureTelecom[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [expanded,     setExpanded]     = useState<number | null>(null);
   const [filterAnnee,  setFilterAnnee]  = useState(new Date().getFullYear());
+
+  // Pagination
+  const [page, setPage] = useState(1);
+
+  // Export
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Modal Import
   const [importModal,   setImportModal]   = useState(false);
@@ -36,7 +44,7 @@ export default function FacturesPage() {
       .then(setFactures).catch(() => toast.error("Erreur")).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [filterAnnee]);
+  useEffect(() => { load(); setPage(1); }, [filterAnnee]);
 
   const openImportModal = () => {
     setImportForm(EMPTY_FORM());
@@ -74,9 +82,11 @@ export default function FacturesPage() {
     catch { toast.error("Impossible de supprimer"); }
   };
 
-  const totalMontant = factures.reduce((s, f) =>
+  const totalMontant  = factures.reduce((s, f) =>
     s + f.lignes.reduce((ls, l) => ls + parseFloat(l.montant || "0"), 0), 0
   );
+  const totalPages  = Math.max(1, Math.ceil(factures.length / PAGE_SIZE));
+  const paginated   = factures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <AppLayout>
@@ -95,6 +105,23 @@ export default function FacturesPage() {
             className="input-base w-auto px-3 py-2">
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+          <button
+            disabled={exportLoading || factures.length === 0}
+            onClick={async () => {
+              setExportLoading(true);
+              try {
+                await factureService.exportExcel({ annee: filterAnnee });
+                toast.success("Fichier Excel généré");
+              } catch { toast.error("Erreur lors de l'export"); }
+              finally { setExportLoading(false); }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            {exportLoading
+              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <FileSpreadsheet size={15} />}
+            <span>Exporter</span>
+            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+          </button>
           <button onClick={openImportModal}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
             <Upload size={15} /> Importer facture
@@ -115,7 +142,7 @@ export default function FacturesPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {factures.map(f => {
+          {paginated.map(f => {
             const total  = f.lignes.reduce((s, l) => s + parseFloat(l.montant || "0"), 0);
             const isOpen = expanded === f.id;
             return (
@@ -177,6 +204,45 @@ export default function FacturesPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Pagination ── */}
+      {!loading && factures.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-xs text-gray-400">
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, factures.length)} sur {factures.length} facture(s)
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(1)} disabled={page === 1}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">«</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+              <ChevronLeft size={14} />
+            </button>
+            {(() => {
+              const w = 2, start = Math.max(1, page - w), end = Math.min(totalPages, page + w);
+              return (
+                <>
+                  {start > 1 && <span className="px-1 text-gray-300 text-xs">…</span>}
+                  {Array.from({ length: end - start + 1 }, (_, i) => start + i).map(n => (
+                    <button key={n} onClick={() => setPage(n)}
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition ${
+                        n === page ? "bg-camublue-900 text-white shadow-sm" : "border border-gray-200 hover:bg-gray-50 text-gray-600"
+                      }`}>{n}</button>
+                  ))}
+                  {end < totalPages && <span className="px-1 text-gray-300 text-xs">…</span>}
+                </>
+              );
+            })()}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+              <ChevronRight size={14} />
+            </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium text-gray-500 transition">»</button>
+          </div>
+          <p className="text-xs text-gray-400">Page <strong className="text-gray-700">{page}</strong> / {totalPages}</p>
         </div>
       )}
 

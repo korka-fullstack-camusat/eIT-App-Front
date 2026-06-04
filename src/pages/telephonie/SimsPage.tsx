@@ -217,7 +217,7 @@ export default function SimsPage() {
   return (
     <AppLayout>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Numéros SIM</h1>
           <p className="text-gray-500 text-sm mt-0.5">{loading ? "Chargement…" : `${sims.length} numéro(s)`}</p>
@@ -251,15 +251,6 @@ export default function SimsPage() {
         <StatCard label="Inactives" value={statsMap["INACTIVE"] ?? 0} color="bg-gray-500"
           onClick={() => setStatutFil(statutFil === "INACTIVE" ? "" : "INACTIVE")}
           active={statutFil === "INACTIVE"} />
-        <StatCard label="Suspendues" value={statsMap["SUSPENDUE"] ?? 0} color="bg-amber-500"
-          onClick={() => setStatutFil(statutFil === "SUSPENDUE" ? "" : "SUSPENDUE")}
-          active={statutFil === "SUSPENDUE"} />
-        <StatCard label="Résiliées" value={statsMap["RESILIE"] ?? 0} color="bg-red-500"
-          onClick={() => setStatutFil(statutFil === "RESILIE" ? "" : "RESILIE")}
-          active={statutFil === "RESILIE"} />
-        <StatCard label="Cédées" value={statsMap["CEDE"] ?? 0} color="bg-purple-500"
-          onClick={() => setStatutFil(statutFil === "CEDE" ? "" : "CEDE")}
-          active={statutFil === "CEDE"} />
       </div>
 
       {/* ── Filtres ── */}

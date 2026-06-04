@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
     icon: <Smartphone size={20} />,
     subItems: [
       { label: "Numéros SIM", path: "/sims"      },
-      { label: "Sites GSM",   path: "/sites"     },
+      { label: "Sites RMS",   path: "/sites"     },
       { label: "Véhicules",   path: "/vehicules" },
       { label: "Factures",    path: "/factures"  },
     ],

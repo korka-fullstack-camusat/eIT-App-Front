@@ -179,7 +179,8 @@ export const simService = {
 };
 
 export const siteService = {
-  getAll:  () => ax.get<SiteGSM[]>("/telephonie/sites").then(r => r.data),
+  getAll:  (params?: { search?: string }) =>
+    ax.get<SiteGSM[]>("/telephonie/sites", { params }).then(r => r.data),
   create:  (data: any) => ax.post<SiteGSM>("/telephonie/sites", data).then(r => r.data),
   update:  (id: number, data: any) => ax.patch<SiteGSM>(`/telephonie/sites/${id}`, data).then(r => r.data),
   delete:  (id: number) => ax.delete(`/telephonie/sites/${id}`),
@@ -188,11 +189,29 @@ export const siteService = {
     const url  = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "sites_gsm.csv");
+    link.setAttribute("download", "sites_rms.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  },
+  exportExcel: async (params?: { filter_sim?: string; search?: string; cols?: string; date_debut?: string; date_fin?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.filter_sim)  q.set("filter_sim",  params.filter_sim);
+    if (params?.search)      q.set("search",      params.search);
+    if (params?.cols)        q.set("cols",         params.cols);
+    if (params?.date_debut)  q.set("date_debut",  params.date_debut);
+    if (params?.date_fin)    q.set("date_fin",    params.date_fin);
+    const resp = await ax.get(`/telephonie/sites/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    let fname = "sites_rms";
+    if (params?.date_debut) fname += `_du_${params.date_debut}`;
+    if (params?.date_fin)   fname += `_au_${params.date_fin}`;
+    link.href = url; link.setAttribute("download", `${fname}.xlsx`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
   },
   importSites: (file: File) => {
     const form = new FormData();
@@ -218,6 +237,24 @@ export const vehiculeService = {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  },
+  exportExcel: async (params?: { filter_sim?: string; search?: string; cols?: string; date_debut?: string; date_fin?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.filter_sim)  q.set("filter_sim",  params.filter_sim);
+    if (params?.search)      q.set("search",      params.search);
+    if (params?.cols)        q.set("cols",         params.cols);
+    if (params?.date_debut)  q.set("date_debut",  params.date_debut);
+    if (params?.date_fin)    q.set("date_fin",    params.date_fin);
+    const resp = await ax.get(`/telephonie/vehicules/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    let fname = "vehicules";
+    if (params?.date_debut) fname += `_du_${params.date_debut}`;
+    if (params?.date_fin)   fname += `_au_${params.date_fin}`;
+    link.href = url; link.setAttribute("download", `${fname}.xlsx`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
   },
   importVehicules: (file: File) => {
     const form = new FormData();
@@ -245,6 +282,19 @@ export const factureService = {
     }).then(r => r.data);
   },
   delete:       (id: number) => ax.delete(`/factures/${id}`),
+  exportExcel: async (params?: { annee?: number; mois?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.annee) q.set("annee", String(params.annee));
+    if (params?.mois)  q.set("mois",  String(params.mois));
+    const resp = await ax.get(`/factures/export-excel?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `factures_${params?.annee ?? "all"}${params?.mois ? `_${String(params.mois).padStart(2,"0")}` : ""}.xlsx`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
+  },
   statsMensuel: (annee: number) => ax.get("/factures/stats/mensuel", { params: { annee } }).then(r => r.data),
 };
 

@@ -415,7 +415,7 @@ export default function AttributionsPage() {
   return (
     <AppLayout>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-camublue-900">Attributions</h1>
           <p className="text-gray-500 text-sm mt-0.5">
@@ -453,8 +453,6 @@ export default function AttributionsPage() {
           active={filtre === "CLOTUREE"} />
         <StatCard label="Employés actifs" value={employesActifs} color="bg-blue-500"
           onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
-          active={false} />
-        <StatCard label="Groupes filtrés" value={grouped.length} color="bg-purple-500"
           active={false} />
       </div>
 

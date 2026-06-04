@@ -89,6 +89,7 @@ export interface Vehicule {
   immatriculation: string;
   marque:          string | null;
   modele:          string | null;
+  imsi:            string | null;
   affectation:     string | null;
   created_at:      string;
   sim_numero:      string | null;
