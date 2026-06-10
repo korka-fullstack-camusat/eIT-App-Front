@@ -5,7 +5,6 @@ import {
   ChevronLeft, ChevronRight, Filter, FileSpreadsheet, Trash2, Info,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { attributionService, materielService, employeeService, templateService } from "@/services/api";
 import type { Attribution, Materiel, Employee } from "@/types";
@@ -79,7 +78,7 @@ function groupByEmployee(attributions: Attribution[]): EmployeeGroup[] {
 
 const PAGE_SIZE = 10;
 
-export default function AttributionsPage() {
+export function AttributionsContent() {
   const { isViewer } = useAuth();
   const [items,   setItems]   = useState<Attribution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -415,7 +414,7 @@ export default function AttributionsPage() {
   const paginatedGroups = grouped.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <AppLayout>
+    <>
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -1612,6 +1611,6 @@ export default function AttributionsPage() {
         </div>
       )}
 
-    </AppLayout>
+    </>
   );
 }

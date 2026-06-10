@@ -24,15 +24,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: "Tableau de bord", path: "/dashboard", icon: <LayoutDashboard size={20} /> },
-  {
-    label: "Parc Informatique",
-    path: "/parc",
-    icon: <Monitor size={20} />,
-    subItems: [
-      { label: "Matériels",    path: "/materiels"    },
-      { label: "Attributions", path: "/attributions" },
-    ],
-  },
+  { label: "Parc Informatique", path: "/parc", icon: <Monitor size={20} /> },
   {
     label: "Téléphonie",
     path: "/telephonie",

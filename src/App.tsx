@@ -2,8 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage    from "@/pages/LandingPage";
 import LoginPage      from "@/pages/LoginPage";
 import DashboardPage  from "@/pages/DashboardPage";
-import MaterielsPage  from "@/pages/parc/MaterielsPage";
-import AttributionsPage from "@/pages/parc/AttributionsPage";
+import ParcInformatiquePage from "@/pages/parc/ParcInformatiquePage";
 import SimsPage       from "@/pages/telephonie/SimsPage";
 import SitesPage      from "@/pages/telephonie/SitesPage";
 import VehiculesPage  from "@/pages/telephonie/VehiculesPage";
@@ -21,8 +20,9 @@ export default function App() {
 
       {/* Pages protégées */}
       <Route path="/dashboard"   element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/materiels"   element={<ProtectedRoute><MaterielsPage /></ProtectedRoute>} />
-      <Route path="/attributions" element={<ProtectedRoute><AttributionsPage /></ProtectedRoute>} />
+      <Route path="/parc"         element={<ProtectedRoute><ParcInformatiquePage /></ProtectedRoute>} />
+      <Route path="/materiels"   element={<Navigate to="/parc" replace />} />
+      <Route path="/attributions" element={<Navigate to="/parc" replace />} />
       <Route path="/sims"        element={<ProtectedRoute><SimsPage /></ProtectedRoute>} />
       <Route path="/sites"       element={<ProtectedRoute><SitesPage /></ProtectedRoute>} />
       <Route path="/vehicules"   element={<ProtectedRoute><VehiculesPage /></ProtectedRoute>} />

@@ -168,58 +168,58 @@ export default function FacturesPage() {
       {/* ── Statistiques globales ── */}
       {!loading && factures.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
               <Receipt size={18} className="text-camublue-900" />
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Factures</p>
               <p className="font-bold text-gray-800 text-lg">{nbFactures}</p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Factures</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
               <Wallet size={18} className="text-camublue-900" />
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Total {filterAnnee}</p>
-              <p className="font-bold text-gray-800 text-lg">{totalMontant.toLocaleString("fr-FR")} <span className="text-sm">FCFA</span></p>
+              <p className="font-bold text-gray-800 text-lg">{totalMontant.toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Total {filterAnnee}</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
               <BarChart3 size={18} className="text-camublue-900" />
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Moyenne / facture</p>
-              <p className="font-bold text-gray-800 text-lg">{Math.round(moyenneMontant).toLocaleString("fr-FR")} <span className="text-sm">FCFA</span></p>
+              <p className="font-bold text-gray-800 text-lg">{Math.round(moyenneMontant).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Moyenne / facture</p>
             </div>
           </div>
           {maxFacture && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
                 <TrendingUp size={18} className="text-red-500" />
               </div>
               <div>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Plus élevée — {MOIS_LABELS[maxFacture.mois]}</p>
-                <p className="font-bold text-gray-800 text-lg">{factureTotal(maxFacture).toLocaleString("fr-FR")} <span className="text-sm">FCFA</span></p>
+                <p className="font-bold text-gray-800 text-lg">{factureTotal(maxFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus élevée — {MOIS_LABELS[maxFacture.mois]}</p>
               </div>
             </div>
           )}
           {minFacture && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                 <TrendingDown size={18} className="text-emerald-500" />
               </div>
               <div>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Plus basse — {MOIS_LABELS[minFacture.mois]}</p>
-                <p className="font-bold text-gray-800 text-lg">{factureTotal(minFacture).toLocaleString("fr-FR")} <span className="text-sm">FCFA</span></p>
+                <p className="font-bold text-gray-800 text-lg">{factureTotal(minFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus basse — {MOIS_LABELS[minFacture.mois]}</p>
               </div>
             </div>
           )}
           {dernierEcartVal != null && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
                 dernierEcartVal > 0 ? "bg-red-50" : dernierEcartVal < 0 ? "bg-emerald-50" : "bg-gray-100"
               }`}>
                 {dernierEcartVal > 0
@@ -229,10 +229,10 @@ export default function FacturesPage() {
                     : <BarChart3 size={18} className="text-gray-400" />}
               </div>
               <div>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">Dernier écart (vs N-1)</p>
                 <p className="font-bold text-gray-800 text-lg">
-                  {dernierEcartVal > 0 ? "+" : ""}{Math.round(dernierEcartVal).toLocaleString("fr-FR")} <span className="text-sm">FCFA</span>
+                  {dernierEcartVal > 0 ? "+" : ""}{Math.round(dernierEcartVal).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span>
                 </p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Dernier écart (vs N-1)</p>
               </div>
             </div>
           )}

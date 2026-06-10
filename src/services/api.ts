@@ -31,7 +31,7 @@ ax.interceptors.response.use(
 
 // ── Matériels ─────────────────────────────────────────────────────────────────
 export const materielService = {
-  getAll:   (params?: { statut?: string; type_materiel?: string; etat?: string; search?: string }) => ax.get<Materiel[]>("/materiels/", { params }).then(r => r.data),
+  getAll:   (params?: { statut?: string; type_materiel?: string; etat?: string; projet?: string; assigne?: string; search?: string }) => ax.get<Materiel[]>("/materiels/", { params }).then(r => r.data),
   get:      (id: number)    => ax.get<Materiel>(`/materiels/${id}`).then(r => r.data),
   create:   (data: any)     => ax.post<Materiel>("/materiels/", data).then(r => r.data),
   update:   (id: number, data: any) => ax.patch<Materiel>(`/materiels/${id}`, data).then(r => r.data),
@@ -39,6 +39,7 @@ export const materielService = {
   stats:       ()           => ax.get("/materiels/stats/summary").then(r => r.data),
   statsByType: ()           => ax.get("/materiels/stats/par-type").then(r => r.data),
   statsByBrand:()           => ax.get("/materiels/stats/par-marque").then(r => r.data),
+  statsByProjet:()          => ax.get("/materiels/stats/par-projet").then(r => r.data),
   exportExcel: async (params: {
     statut?: string; type_materiel?: string; etat?: string; search?: string;
     date_debut?: string; date_fin?: string; cols?: string;

@@ -2,7 +2,7 @@
 
 export type TypeMateriel =
   | "ORDINATEUR_PORTABLE" | "ORDINATEUR_FIXE" | "ECRAN" | "SOURIS"
-  | "CLAVIER" | "TELEPHONE" | "IMPRIMANTE" | "SWITCH" | "ROUTEUR"
+  | "CLAVIER" | "TELEPHONE" | "TABLETTE" | "IMPRIMANTE" | "SWITCH" | "ROUTEUR"
   | "ONDULEUR" | "AUTRE";
 
 export type EtatMateriel  = "NEUF" | "BON" | "USAGE" | "DEFECTUEUX";
@@ -24,6 +24,10 @@ export interface Materiel {
   numero_serie:       string | null;
   adresse_mac:        string | null;
   numero_bon_cmd:     string | null;
+  projet:             string | null;
+  beneficiaire_matricule: string | null;
+  beneficiaire_nom:       string | null;
+  beneficiaire_prenom:    string | null;
   etat:               EtatMateriel;
   statut:             StatutMateriel;
   date_acquisition:   string | null;

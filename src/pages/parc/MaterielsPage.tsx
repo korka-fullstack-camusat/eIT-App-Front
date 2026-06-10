@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet, User } from "lucide-react";
 import toast from "react-hot-toast";
-import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { materielService, attributionService, employeeService } from "@/services/api";
 import type { Materiel } from "@/types";
@@ -17,7 +16,7 @@ const STATUT_COLORS: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   ORDINATEUR_PORTABLE: "PC Portable", ORDINATEUR_FIXE: "PC Fixe",
   ECRAN: "Écran", SOURIS: "Souris", CLAVIER: "Clavier",
-  TELEPHONE: "Téléphone", IMPRIMANTE: "Imprimante",
+  TELEPHONE: "Téléphone", TABLETTE: "Tablette", IMPRIMANTE: "Imprimante",
   SWITCH: "Switch", ROUTEUR: "Routeur", ONDULEUR: "Onduleur", AUTRE: "Autre",
 };
 
@@ -32,6 +31,10 @@ const EMPTY_FORM = {
   numero_serie:     "",
   adresse_mac:      "",
   numero_bon_cmd:   "",
+  projet:           "",
+  beneficiaire_matricule: "",
+  beneficiaire_nom:       "",
+  beneficiaire_prenom:    "",
   etat:             "BON",
   date_acquisition: "",
 };
@@ -53,7 +56,7 @@ function StatCard({
   );
 }
 
-export default function MaterielsPage() {
+export function MaterielsContent() {
   const { isViewer } = useAuth();
   const [items,    setItems]    = useState<Materiel[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -64,6 +67,10 @@ export default function MaterielsPage() {
   const [statut,      setStatut]      = useState("");
   const [typeFilter,  setTypeFilter]  = useState("");
   const [etatFilter,  setEtatFilter]  = useState("");
+  const [projetFilter,  setProjetFilter]  = useState("");
+  const [assigneFilter, setAssigneFilter] = useState("");
+  const [showAdvanced,  setShowAdvanced]  = useState(false);
+  const [projets, setProjets] = useState<{ projet: string; count: number }[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Stats ────────────────────────────────────────────────────────────────────
@@ -92,7 +99,20 @@ export default function MaterielsPage() {
 
   // modal Gérer
   const [gererItem,   setGererItem]   = useState<Materiel | null>(null);
-  const [gererMode,   setGererMode]   = useState<"menu" | "recuperer">("menu");
+  const [gererMode,   setGererMode]   = useState<"menu" | "recuperer" | "assigner">("menu");
+  // formulaire d'assignation (matériel disponible -> employé)
+  const [assignForm, setAssignForm] = useState<any>({
+    employee_id: "", employee_nom: "", employee_prenom: "",
+    employee_matricule: "", employee_service: "", employee_poste: "",
+    date_attribution: new Date().toISOString().split("T")[0],
+    etat_remise: "BON", notes: "",
+  });
+  const [assignEmpQuery,   setAssignEmpQuery]   = useState("");
+  const [assignEmpResults, setAssignEmpResults] = useState<any[]>([]);
+  const [assignEmpOpen,    setAssignEmpOpen]    = useState(false);
+  const [assignEmpLoading, setAssignEmpLoading] = useState(false);
+  const [assignLoading,    setAssignLoading]    = useState(false);
+  const assignTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // modal Détails
   const [detailItem,  setDetailItem]  = useState<Materiel | null>(null);
   // modal Parcours
@@ -160,14 +180,17 @@ export default function MaterielsPage() {
       statut:        statut        || undefined,
       type_materiel: typeFilter    || undefined,
       etat:          etatFilter    || undefined,
+      projet:        projetFilter  || undefined,
+      assigne:       assigneFilter || undefined,
     })
       .then(data => { setItems(data); })
       .catch(() => toast.error("Erreur de chargement"))
       .finally(() => { setLoading(false); loadStats(); });
-  }, [search, statut, typeFilter, etatFilter]);
+  }, [search, statut, typeFilter, etatFilter, projetFilter, assigneFilter]);
 
-  useEffect(() => { load(); setPage(1); }, [search, statut, typeFilter, etatFilter]);
+  useEffect(() => { load(); setPage(1); }, [search, statut, typeFilter, etatFilter, projetFilter, assigneFilter]);
   useEffect(() => { loadStats(); }, []);
+  useEffect(() => { materielService.statsByProjet().then(setProjets).catch(() => {}); }, []);
 
   // Debounce de la saisie dans le champ recherche
   const handleSearchInput = (val: string) => {
@@ -210,6 +233,10 @@ export default function MaterielsPage() {
       numero_serie:     m.numero_serie     ?? "",
       adresse_mac:      m.adresse_mac      ?? "",
       numero_bon_cmd:   m.numero_bon_cmd   ?? "",
+      projet:           m.projet           ?? "",
+      beneficiaire_matricule: m.beneficiaire_matricule ?? "",
+      beneficiaire_nom:       m.beneficiaire_nom       ?? "",
+      beneficiaire_prenom:    m.beneficiaire_prenom    ?? "",
       etat:             m.etat,
       statut:           m.statut,
       date_acquisition: m.date_acquisition ?? "",
@@ -330,6 +357,76 @@ export default function MaterielsPage() {
     }
   };
 
+  const searchAssignEmp = (q: string) => {
+    if (assignTimer.current) clearTimeout(assignTimer.current);
+    if (!q.trim()) { setAssignEmpResults([]); setAssignEmpOpen(false); return; }
+    assignTimer.current = setTimeout(async () => {
+      setAssignEmpLoading(true);
+      try {
+        const res = await employeeService.search(q);
+        setAssignEmpResults(res.slice(0, 8));
+        setAssignEmpOpen(true);
+      } catch { toast.error("Impossible de joindre l'API eRh"); }
+      finally { setAssignEmpLoading(false); }
+    }, 350);
+  };
+
+  const selectAssignEmp = (emp: any) => {
+    setAssignForm((p: any) => ({
+      ...p,
+      employee_id:        emp.id,
+      employee_nom:       emp.nom,
+      employee_prenom:    emp.prenom,
+      employee_matricule: emp.matricule,
+      employee_service:   emp.service ?? "",
+      employee_poste:     emp.fonction ?? "",
+    }));
+    setAssignEmpQuery(`${emp.prenom} ${emp.nom}`);
+    setAssignEmpOpen(false);
+    setAssignEmpResults([]);
+  };
+
+  const openAssigner = (m: Materiel) => {
+    setAssignForm({
+      employee_id: "", employee_nom: "", employee_prenom: "",
+      employee_matricule: "", employee_service: "", employee_poste: "",
+      date_attribution: new Date().toISOString().split("T")[0],
+      etat_remise: "BON", notes: "",
+    });
+    setAssignEmpQuery("");
+    setAssignEmpResults([]);
+    setAssignEmpOpen(false);
+    setGererMode("assigner");
+  };
+
+  const handleAssigner = async () => {
+    if (!gererItem) return;
+    if (!assignForm.employee_id) { toast.error("Veuillez sélectionner un employé"); return; }
+    setAssignLoading(true);
+    try {
+      await attributionService.create({
+        materiel_id:        gererItem.id,
+        employee_id:        assignForm.employee_id,
+        employee_nom:       assignForm.employee_nom,
+        employee_prenom:    assignForm.employee_prenom,
+        employee_matricule: assignForm.employee_matricule,
+        employee_service:   assignForm.employee_service,
+        employee_poste:     assignForm.employee_poste,
+        date_attribution:   assignForm.date_attribution,
+        etat_remise:        assignForm.etat_remise,
+        notes:              assignForm.notes || null,
+      });
+      toast.success("Matériel assigné avec succès");
+      setGererItem(null);
+      setGererMode("menu");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Erreur lors de l'assignation");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   const openParcours = async (m: Materiel) => {
     setGererItem(null);
     setParcoursItem(m);
@@ -374,7 +471,7 @@ export default function MaterielsPage() {
 
 
   return (
-    <AppLayout>
+    <>
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -410,8 +507,8 @@ export default function MaterielsPage() {
       {/* ── Cartes statistiques ── */}
       <div className="flex gap-3 mb-5 flex-wrap">
         <StatCard label="Total" value={stats.total ?? "—"} color="bg-camublue-900"
-          onClick={() => { setStatut(""); setTypeFilter(""); setEtatFilter(""); setSearchInput(""); setSearch(""); }}
-          active={!statut && !typeFilter && !etatFilter && !search} />
+          onClick={() => { setStatut(""); setTypeFilter(""); setEtatFilter(""); setProjetFilter(""); setAssigneFilter(""); setSearchInput(""); setSearch(""); }}
+          active={!statut && !typeFilter && !etatFilter && !projetFilter && !assigneFilter && !search} />
         <StatCard label="Disponibles" value={stats.disponible ?? "—"} color="bg-emerald-500"
           onClick={() => setStatut(statut === "DISPONIBLE" ? "" : "DISPONIBLE")}
           active={statut === "DISPONIBLE"} />
@@ -488,7 +585,58 @@ export default function MaterielsPage() {
             <option value="DEFECTUEUX">Défectueux</option>
           </select>
 
+          {/* Bouton filtres personnalisés */}
+          <button onClick={() => setShowAdvanced(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition ${
+              showAdvanced || projetFilter || assigneFilter
+                ? "bg-camublue-900 text-white border-camublue-900"
+                : "border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}>
+            <Filter size={13} /> Filtres personnalisés
+            {(projetFilter || assigneFilter) && (
+              <span className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px] font-bold">
+                {[projetFilter, assigneFilter].filter(Boolean).length}
+              </span>
+            )}
+          </button>
+
         </div>
+
+        {/* ── Filtres personnalisés (repliables) ── */}
+        {showAdvanced && (
+          <div className="flex gap-3 flex-wrap items-center mt-3 pt-3 border-t border-gray-100">
+            {/* Filtre Projet */}
+            <div className="flex items-center gap-1.5 min-w-[160px]">
+              <span className="text-xs font-semibold text-gray-500 shrink-0">Projet</span>
+              <select value={projetFilter} onChange={e => { setProjetFilter(e.target.value); setPage(1); }}
+                className="input-base py-2 flex-1 text-sm">
+                <option value="">Tous les projets</option>
+                {projets.map(p => (
+                  <option key={p.projet} value={p.projet}>{p.projet} ({p.count})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtre Assignation */}
+            <div className="flex items-center gap-1.5 min-w-[160px]">
+              <span className="text-xs font-semibold text-gray-500 shrink-0">Assignation</span>
+              <select value={assigneFilter} onChange={e => { setAssigneFilter(e.target.value); setPage(1); }}
+                className="input-base py-2 flex-1 text-sm">
+                <option value="">Tous</option>
+                <option value="OUI">Assignés</option>
+                <option value="NON">Non assignés</option>
+              </select>
+            </div>
+
+            {/* Réinitialiser */}
+            {(projetFilter || assigneFilter) && (
+              <button onClick={() => { setProjetFilter(""); setAssigneFilter(""); setPage(1); }}
+                className="flex items-center gap-1 text-xs font-semibold text-camublue-900 hover:underline">
+                <X size={12} /> Réinitialiser les filtres personnalisés
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tableau */}
@@ -496,16 +644,16 @@ export default function MaterielsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              {["Type","Marque / Modèle","N° Série / MAC","État","Statut","Assigné à","Actions"].map(h => (
+              {["Type","Marque / Modèle","N° Série / MAC","Projet","État","Statut","Assigné à","Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
             ) : paginated.map(m => (
               <tr key={m.id} onClick={() => setDetailItem(m)}
                 className="hover:bg-gray-50/50 transition cursor-pointer">
@@ -520,6 +668,9 @@ export default function MaterielsPage() {
                     : m.numero_serie
                     ? <span className="text-gray-500">{m.numero_serie}</span>
                     : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-600">
+                  {m.projet ? <span className="px-2 py-0.5 bg-camublue-900/5 text-camublue-900 rounded-lg font-semibold">{m.projet}</span> : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-600">{m.etat}</td>
                 <td className="px-4 py-3">
@@ -541,6 +692,15 @@ export default function MaterielsPage() {
                       </p>
                       {m.attribution_active.employee_service && (
                         <p className="text-xs text-gray-400">{m.attribution_active.employee_service}</p>
+                      )}
+                    </div>
+                  ) : (m.beneficiaire_nom || m.beneficiaire_prenom) ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">
+                        {[m.beneficiaire_prenom, m.beneficiaire_nom].filter(Boolean).join(" ")}
+                      </p>
+                      {m.beneficiaire_matricule && (
+                        <p className="text-xs text-gray-400">Mat. {m.beneficiaire_matricule}</p>
                       )}
                     </div>
                   ) : <span className="text-xs text-gray-300">—</span>}
@@ -675,6 +835,7 @@ export default function MaterielsPage() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Acquisition</p>
                 {[
                   { label: "N° PO",       value: detailItem.numero_bon_cmd },
+                  { label: "Projet",      value: detailItem.projet },
                   { label: "Date",        value: detailItem.date_acquisition
                       ? new Date(detailItem.date_acquisition).toLocaleDateString("fr-FR")
                       : null },
@@ -715,6 +876,25 @@ export default function MaterielsPage() {
                         {detailItem.attribution_active.employee_service ? ` · ${detailItem.attribution_active.employee_service}` : ""}
                         {detailItem.attribution_active.employee_poste ? ` · ${detailItem.attribution_active.employee_poste}` : ""}
                       </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (detailItem.beneficiaire_nom || detailItem.beneficiaire_prenom) ? (
+                <div className="pt-4 space-y-2.5">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Assigné à</p>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-camublue-900/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-camublue-900">
+                        {(detailItem.beneficiaire_nom ?? detailItem.beneficiaire_prenom ?? "?").charAt(0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {[detailItem.beneficiaire_prenom, detailItem.beneficiaire_nom].filter(Boolean).join(" ")}
+                      </p>
+                      {detailItem.beneficiaire_matricule && (
+                        <p className="text-xs text-gray-400">Matricule {detailItem.beneficiaire_matricule}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1009,29 +1189,31 @@ export default function MaterielsPage() {
       {/* ── Modal Gérer ───────────────────────────────────────────────────── */}
       {gererItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs">
+          <div className={`bg-white rounded-2xl shadow-2xl w-full ${gererMode === "assigner" ? "max-w-sm" : "max-w-xs"}`}>
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                {gererMode === "recuperer" && (
-                  <button onClick={() => { setGererMode("menu"); setRecupererAttr(null); setRecupEmpQuery(""); }}
+                {(gererMode === "recuperer" || gererMode === "assigner") && (
+                  <button onClick={() => { setGererMode("menu"); setRecupererAttr(null); setRecupEmpQuery(""); setAssignEmpQuery(""); }}
                     className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
                     <ChevronLeft size={16} />
                   </button>
                 )}
                 <div>
                   <p className="font-bold text-camublue-900">
-                    {gererMode === "recuperer" ? "Récupérer le matériel" : gererItem.marque}
+                    {gererMode === "recuperer" ? "Récupérer le matériel"
+                      : gererMode === "assigner" ? "Assigner le matériel"
+                      : gererItem.marque}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {gererMode === "recuperer"
+                    {gererMode === "recuperer" || gererMode === "assigner"
                       ? `${gererItem.marque} — ${TYPE_LABELS[gererItem.type_materiel]}`
                       : TYPE_LABELS[gererItem.type_materiel]}
                   </p>
                 </div>
               </div>
-              <button onClick={() => { setGererItem(null); setGererMode("menu"); setRecupererAttr(null); setRecupEmpQuery(""); }}
+              <button onClick={() => { setGererItem(null); setGererMode("menu"); setRecupererAttr(null); setRecupEmpQuery(""); setAssignEmpQuery(""); }}
                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
                 <X size={16} />
               </button>
@@ -1051,6 +1233,19 @@ export default function MaterielsPage() {
                     <p className="text-xs text-gray-400">Éditer les informations</p>
                   </div>
                 </button>
+                )}
+
+                {!isViewer && gererItem.statut === "DISPONIBLE" && (
+                  <button onClick={() => openAssigner(gererItem)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-emerald-50 transition text-left">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                      <User size={14} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Assigner</p>
+                      <p className="text-xs text-gray-400">Attribuer à un employé</p>
+                    </div>
+                  </button>
                 )}
 
                 {!isViewer && gererItem.statut === "ATTRIBUE" && (
@@ -1132,6 +1327,95 @@ export default function MaterielsPage() {
                 </div>
               </div>
             )}
+
+            {/* ── Formulaire assignation ── */}
+            {gererMode === "assigner" && (
+              <div className="px-5 py-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Employé</label>
+                  {assignForm.employee_id ? (
+                    <div className="flex items-center gap-2.5 p-2.5 border border-gray-200 rounded-xl">
+                      <div className="w-8 h-8 rounded-full bg-camublue-900/10 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-camublue-900">
+                          {(assignForm.employee_prenom || assignForm.employee_nom || "?").charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{assignForm.employee_prenom} {assignForm.employee_nom}</p>
+                        <p className="text-xs text-gray-400 truncate">{assignForm.employee_matricule}{assignForm.employee_service ? ` · ${assignForm.employee_service}` : ""}</p>
+                      </div>
+                      <button onClick={() => { setAssignForm((p: any) => ({ ...p, employee_id: "" })); setAssignEmpQuery(""); }}
+                        className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition shrink-0">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="text" value={assignEmpQuery}
+                        onChange={e => { setAssignEmpQuery(e.target.value); searchAssignEmp(e.target.value); }}
+                        onFocus={() => assignEmpResults.length > 0 && setAssignEmpOpen(true)}
+                        placeholder="Rechercher un employé…"
+                        className="input-base pl-8" />
+                      {assignEmpLoading && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />
+                      )}
+                      {assignEmpOpen && assignEmpResults.length > 0 && (
+                        <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                          {assignEmpResults.map(emp => (
+                            <button key={emp.id} type="button" onClick={() => selectAssignEmp(emp)}
+                              className="w-full flex flex-col items-start px-3 py-2 hover:bg-camublue-900/5 text-left border-b border-gray-50 last:border-0 transition">
+                              <span className="text-sm font-semibold text-gray-800">{emp.prenom} {emp.nom}</span>
+                              <span className="text-xs text-gray-400">{emp.matricule}{emp.service ? ` · ${emp.service}` : ""}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Date d'attribution</label>
+                    <input type="date" value={assignForm.date_attribution}
+                      onChange={e => setAssignForm((p: any) => ({ ...p, date_attribution: e.target.value }))}
+                      className="input-base" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">État remise</label>
+                    <select value={assignForm.etat_remise}
+                      onChange={e => setAssignForm((p: any) => ({ ...p, etat_remise: e.target.value }))}
+                      className="input-base">
+                      <option value="NEUF">Neuf</option>
+                      <option value="BON">Bon</option>
+                      <option value="USAGE">Usagé</option>
+                      <option value="DEFECTUEUX">Défectueux</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Notes</label>
+                  <input type="text" value={assignForm.notes}
+                    onChange={e => setAssignForm((p: any) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Optionnel" className="input-base" />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setGererMode("menu")}
+                    className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                    Annuler
+                  </button>
+                  <button onClick={handleAssigner} disabled={assignLoading}
+                    className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                    {assignLoading
+                      ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> En cours…</>
+                      : "Assigner"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1194,11 +1478,19 @@ export default function MaterielsPage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">N° PO</label>
-                <input type="text" value={form.numero_bon_cmd}
-                  onChange={e => setForm((p: any) => ({ ...p, numero_bon_cmd: e.target.value }))}
-                  placeholder="PO-2025-XXXX" className="input-base" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">N° PO</label>
+                  <input type="text" value={form.numero_bon_cmd}
+                    onChange={e => setForm((p: any) => ({ ...p, numero_bon_cmd: e.target.value }))}
+                    placeholder="PO-2025-XXXX" className="input-base" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Projet</label>
+                  <input type="text" value={form.projet ?? ""}
+                    onChange={e => setForm((p: any) => ({ ...p, projet: e.target.value }))}
+                    placeholder="FO, ESCO, BTS…" className="input-base" />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1218,6 +1510,28 @@ export default function MaterielsPage() {
                   <input type="date" value={form.date_acquisition}
                     onChange={e => setForm((p: any) => ({ ...p, date_acquisition: e.target.value }))}
                     className="input-base" />
+                </div>
+              </div>
+
+              {/* Bénéficiaire */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Matricule</label>
+                  <input type="text" value={form.beneficiaire_matricule ?? ""}
+                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_matricule: e.target.value }))}
+                    placeholder="278" className="input-base" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nom</label>
+                  <input type="text" value={form.beneficiaire_nom ?? ""}
+                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_nom: e.target.value }))}
+                    placeholder="TOURE" className="input-base" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prénom</label>
+                  <input type="text" value={form.beneficiaire_prenom ?? ""}
+                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_prenom: e.target.value }))}
+                    placeholder="Awa Sall" className="input-base" />
                 </div>
               </div>
 
@@ -1406,14 +1720,16 @@ export default function MaterielsPage() {
                     <Upload size={22} className={importFile ? "text-camublue-900" : "text-gray-300"} />
                     {importFile
                       ? <span className="text-sm font-semibold text-camublue-900">{importFile.name}</span>
-                      : <span className="text-sm text-gray-400">Cliquer pour choisir un fichier .csv</span>
+                      : <span className="text-sm text-gray-400">Cliquer pour choisir un fichier .csv ou .xlsx</span>
                     }
-                    <input type="file" accept=".csv" className="hidden"
+                    <input type="file" accept=".csv,.xlsx" className="hidden"
                       onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }} />
                   </label>
                   <div className="text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
-                    <p className="font-semibold text-gray-600">Colonnes attendues :</p>
+                    <p className="font-semibold text-gray-600">Fichier .csv — colonnes attendues :</p>
                     <p className="font-mono">Type ; Marque ; Modèle ; N° Série ; Adresse MAC ; N° PO ; État ; Acquisition</p>
+                    <p className="font-semibold text-gray-600 pt-1">Fichier .xlsx « Suivi Parc » — toutes les colonnes sont récupérées :</p>
+                    <p className="font-mono">Matricule ; Nom ; Prenom ; Projet ; Nature ; Désignation Equipement ; Ref Carte Réseau ; N° Serie ; PO ; Date d'attribution ; Statut</p>
                   </div>
                   <div className="flex gap-3 pt-1">
                     <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); }}
@@ -1447,6 +1763,6 @@ export default function MaterielsPage() {
           </div>
         </div>
       )}
-    </AppLayout>
+    </>
   );
 }
