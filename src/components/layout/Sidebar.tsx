@@ -44,8 +44,9 @@ const navItems: NavItem[] = [
       { label: "Factures",    path: "/factures"  },
     ],
   },
-  { label: "Comptes utilisateurs", path: "/users", icon: <Users size={20} /> },
 ];
+
+const adminNavItem: NavItem = { label: "Comptes utilisateurs", path: "/users", icon: <Users size={20} /> };
 
 export default function Sidebar() {
   const location  = useLocation();
@@ -161,10 +162,12 @@ export default function Sidebar() {
     </div>
   );
 
+  const items = user?.role === "ADMIN" ? [...navItems, adminNavItem] : navItems;
+
   const SidebarContent = ({ onClose }: { onClose?: () => void }) => (
     <>
       <nav className="flex-1 px-4 py-6 space-y-1">
-        {navItems.map(item => (
+        {items.map(item => (
           <NavItemComp key={item.path} item={item} onClose={onClose} />
         ))}
       </nav>

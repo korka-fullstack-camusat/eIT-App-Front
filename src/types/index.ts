@@ -119,6 +119,18 @@ export interface LigneFacture {
   numero_raw:  string;
   montant:     string;
   non_reconnu: string;
+
+  // Détail récapitulatif par numéro (extrait tel quel du fichier)
+  reference_facture: string | null;
+  montant_ht:        string | null;
+  rutel:             string | null;
+  montant_ht_rutel:  string | null;
+  tva:               string | null;
+  montant_ttc:       string | null;
+  arrondi_precedent: string | null;
+  arrondi_encours:   string | null;
+  solde_facture:     string | null;
+  type_ligne:        string | null;
 }
 
 export interface FactureTelecom {
@@ -130,6 +142,22 @@ export interface FactureTelecom {
   notes:       string | null;
   created_at:  string;
   lignes:      LigneFacture[];
+
+  // Récapitulatif facture (extrait du fichier importé)
+  numero_compte:     string | null;
+  reference_facture: string | null;
+  montant_ht:        string | null;
+  rutel:             string | null;
+  montant_ht_rutel:  string | null;
+  tva:               string | null;
+  montant_ttc:       string | null;
+  arrondi_precedent: string | null;
+  arrondi_encours:   string | null;
+  solde_facture:     string | null;
+
+  // Écart vs mois précédent (calculé côté backend)
+  ecart:     string | null;
+  ecart_pct: number | null;
 }
 
 export interface ImportResult {

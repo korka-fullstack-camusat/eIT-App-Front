@@ -7,11 +7,33 @@ import type {
 const BASE = "/api";
 const ax = axios.create({ baseURL: BASE });
 
+// Attache automatiquement le token JWT à chaque requête
+ax.interceptors.request.use(config => {
+  const token = localStorage.getItem("parc_it_token");
+  if (token) {
+    config.headers = config.headers ?? {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Gestion globale des erreurs 403 (lecture seule)
+ax.interceptors.response.use(
+  res => res,
+  err => {
+    if (err?.response?.status === 403) {
+      const detail = err.response.data?.detail || "Action non autorisée pour votre compte.";
+      import("react-hot-toast").then(({ default: toast }) => toast.error(detail));
+    }
+    return Promise.reject(err);
+  }
+);
+
 // ── Matériels ─────────────────────────────────────────────────────────────────
 export const materielService = {
-  getAll:   (params?: { statut?: string; type_materiel?: string; etat?: string; search?: string }) => ax.get<Materiel[]>("/materiels", { params }).then(r => r.data),
+  getAll:   (params?: { statut?: string; type_materiel?: string; etat?: string; search?: string }) => ax.get<Materiel[]>("/materiels/", { params }).then(r => r.data),
   get:      (id: number)    => ax.get<Materiel>(`/materiels/${id}`).then(r => r.data),
-  create:   (data: any)     => ax.post<Materiel>("/materiels", data).then(r => r.data),
+  create:   (data: any)     => ax.post<Materiel>("/materiels/", data).then(r => r.data),
   update:   (id: number, data: any) => ax.patch<Materiel>(`/materiels/${id}`, data).then(r => r.data),
   delete:   (id: number)    => ax.delete(`/materiels/${id}`),
   stats:       ()           => ax.get("/materiels/stats/summary").then(r => r.data),
@@ -59,7 +81,7 @@ export const attributionService = {
   getByEmployee:  (id: number) => ax.get<Attribution[]>(`/attributions/employee/${id}`).then(r => r.data),
   getByMateriel:  (id: number) => ax.get<Attribution[]>(`/attributions/materiel/${id}`).then(r => r.data),
   transferer:     (id: number, data: any) => ax.post(`/attributions/${id}/transferer`, data).then(r => r.data),
-  create:         (data: any)  => ax.post<Attribution>("/attributions", data).then(r => r.data),
+  create:         (data: any)  => ax.post<Attribution>("/attributions/", data).then(r => r.data),
   update:         (id: number, data: any) =>
     ax.patch<Attribution>(`/attributions/${id}`, data).then(r => r.data),
   restituer:      (id: number, data: any) =>
@@ -268,7 +290,7 @@ export const vehiculeService = {
 // ── Factures ──────────────────────────────────────────────────────────────────
 export const factureService = {
   getAll:       (params?: { annee?: number }) =>
-    ax.get<FactureTelecom[]>("/factures", { params }).then(r => r.data),
+    ax.get<FactureTelecom[]>("/factures/", { params }).then(r => r.data),
   get:          (id: number) => ax.get<FactureTelecom>(`/factures/${id}`).then(r => r.data),
   importer:     (file: File, meta: { mois: number; annee: number; operateur?: string; notes?: string }) => {
     const form = new FormData();
@@ -323,7 +345,7 @@ export const templateService = {
 // ── Employés (proxy eRh-App) ──────────────────────────────────────────────────
 export const employeeService = {
   search: (search: string, status = "ACTIVE") =>
-    ax.get<Employee[]>("/employees", { params: { search, status } }).then(r => r.data),
+    ax.get<Employee[]>("/employees/", { params: { search, status } }).then(r => r.data),
   get: (matricule: number) =>
     ax.get<Employee>(`/employees/${matricule}`).then(r => r.data),
 };

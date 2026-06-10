@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { materielService, attributionService, employeeService } from "@/services/api";
 import type { Materiel } from "@/types";
 
@@ -53,6 +54,7 @@ function StatCard({
 }
 
 export default function MaterielsPage() {
+  const { isViewer } = useAuth();
   const [items,    setItems]    = useState<Materiel[]>([]);
   const [loading,  setLoading]  = useState(true);
 
@@ -383,21 +385,25 @@ export default function MaterielsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} />
             <span>Exporter</span>
-            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
           </button>
+          {!isViewer && (
           <button onClick={() => setImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} />
             <span>Importer</span>
-            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
           </button>
+          )}
+          {!isViewer && (
           <button onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
             <Plus size={16} /> Ajouter Matériel
           </button>
+          )}
         </div>
       </div>
 
@@ -412,15 +418,12 @@ export default function MaterielsPage() {
         <StatCard label="Attribués" value={stats.attribue ?? "—"} color="bg-blue-500"
           onClick={() => setStatut(statut === "ATTRIBUE" ? "" : "ATTRIBUE")}
           active={statut === "ATTRIBUE"} />
+        <StatCard label="Pannes" value={stats.en_panne ?? "—"} color="bg-orange-500"
+          onClick={() => setStatut(statut === "EN_PANNE" ? "" : "EN_PANNE")}
+          active={statut === "EN_PANNE"} />
         <StatCard label="Maintenance" value={stats.maintenance ?? "—"} color="bg-amber-500"
           onClick={() => setStatut(statut === "MAINTENANCE" ? "" : "MAINTENANCE")}
           active={statut === "MAINTENANCE"} />
-        <StatCard label="En panne" value={stats.en_panne ?? "—"} color="bg-orange-500"
-          onClick={() => setStatut(statut === "EN_PANNE" ? "" : "EN_PANNE")}
-          active={statut === "EN_PANNE"} />
-        <StatCard label="Réformés" value={stats.reforme ?? "—"} color="bg-red-500"
-          onClick={() => setStatut(statut === "REFORME" ? "" : "REFORME")}
-          active={statut === "REFORME"} />
       </div>
 
       {/* ── Filtres avancés ── */}
@@ -1037,6 +1040,7 @@ export default function MaterielsPage() {
             {/* ── Menu principal ── */}
             {gererMode === "menu" && (
               <div className="p-3 space-y-1.5">
+                {!isViewer && (
                 <button onClick={() => openEdit(gererItem)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition text-left">
                   <div className="w-8 h-8 rounded-lg bg-camublue-900/10 flex items-center justify-center shrink-0">
@@ -1047,8 +1051,9 @@ export default function MaterielsPage() {
                     <p className="text-xs text-gray-400">Éditer les informations</p>
                   </div>
                 </button>
+                )}
 
-                {gererItem.statut === "ATTRIBUE" && (
+                {!isViewer && gererItem.statut === "ATTRIBUE" && (
                   <button onClick={() => openRecuperer(gererItem)}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-amber-50 transition text-left">
                     <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
@@ -1072,6 +1077,7 @@ export default function MaterielsPage() {
                   </div>
                 </button>
 
+                {!isViewer && (
                 <button onClick={() => handleDelete(gererItem)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 transition text-left">
                   <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
@@ -1082,6 +1088,7 @@ export default function MaterielsPage() {
                     <p className="text-xs text-gray-400">Retirer définitivement</p>
                   </div>
                 </button>
+                )}
               </div>
             )}
 
@@ -1132,7 +1139,7 @@ export default function MaterielsPage() {
       {/* ── Modal Formulaire (ajout / modification) ───────────────────────── */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <h2 className="font-bold text-lg text-camublue-900">
                 {editing ? "Modifier le matériel" : "Nouveau matériel"}

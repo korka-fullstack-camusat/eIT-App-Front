@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { attributionService, materielService, employeeService, templateService } from "@/services/api";
 import type { Attribution, Materiel, Employee } from "@/types";
 
@@ -79,6 +80,7 @@ function groupByEmployee(attributions: Attribution[]): EmployeeGroup[] {
 const PAGE_SIZE = 10;
 
 export default function AttributionsPage() {
+  const { isViewer } = useAuth();
   const [items,   setItems]   = useState<Attribution[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -423,20 +425,24 @@ export default function AttributionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!isViewer && (
           <button onClick={() => setModeleOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
             <LayoutTemplate size={15} /> Modèle
           </button>
+          )}
           <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} />
             <span>Exporter</span>
-            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
           </button>
+          {!isViewer && (
           <button onClick={openAttribution}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
             <Plus size={16} /> Nouvelle attribution
           </button>
+          )}
         </div>
       </div>
 
@@ -810,6 +816,7 @@ export default function AttributionsPage() {
                   )}
 
                   {/* Mise à jour */}
+                  {!isViewer && (
                   <button
                     onClick={startMaj}
                     className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition group"
@@ -822,9 +829,10 @@ export default function AttributionsPage() {
                       <p className="text-xs text-gray-400">Modifier état ou notes d'un matériel</p>
                     </div>
                   </button>
+                  )}
 
                   {/* Restitution */}
-                  {gererGroup.attributions.some(a => a.statut === "ACTIVE") ? (
+                  {!isViewer && (gererGroup.attributions.some(a => a.statut === "ACTIVE") ? (
                     <button
                       onClick={startRestitution}
                       className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-200 hover:bg-amber-50 hover:border-amber-300 transition group"
@@ -847,7 +855,7 @@ export default function AttributionsPage() {
                         <p className="text-xs text-gray-400">Tous les matériels sont clôturés</p>
                       </div>
                     </div>
-                  )}
+                  ))}
 
                   <button onClick={closeGerer}
                     className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition mt-1">
@@ -1147,7 +1155,7 @@ export default function AttributionsPage() {
       {/* ══ Modal Nouvelle Attribution ══════════════════════════════════════════ */}
       {modal === "attribution" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div>

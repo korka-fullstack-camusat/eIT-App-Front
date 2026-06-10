@@ -4,14 +4,16 @@ import axios from "axios";
 interface AuthUser {
   username: string;
   full_name: string | null;
+  role: string;
 }
 
 interface AuthContextType {
-  user:    AuthUser | null;
-  token:   string | null;
-  login:   (username: string, password: string) => Promise<void>;
-  logout:  () => void;
-  loading: boolean;
+  user:     AuthUser | null;
+  token:    string | null;
+  login:    (username: string, password: string) => Promise<void>;
+  logout:   () => void;
+  loading:  boolean;
+  isViewer: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      const authUser: AuthUser = { username: data.username, full_name: data.full_name };
+      const authUser: AuthUser = { username: data.username, full_name: data.full_name, role: data.role ?? "EDITOR" };
       setToken(data.access_token);
       setUser(authUser);
       localStorage.setItem(TOKEN_KEY, data.access_token);
@@ -65,8 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     delete axios.defaults.headers.common["Authorization"];
   };
 
+  const isViewer = user?.role === "VIEWER";
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, isViewer }}>
       {children}
     </AuthContext.Provider>
   );

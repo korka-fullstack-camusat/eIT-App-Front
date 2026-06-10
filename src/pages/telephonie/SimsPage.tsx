@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { simService, siteService, vehiculeService, employeeService } from "@/services/api";
 import type { NumeroSIM, CategorieSIM, SiteGSM, Vehicule, Employee } from "@/types";
 
@@ -48,6 +49,7 @@ function StatCard({ label, value, color, onClick, active }: {
 }
 
 export default function SimsPage() {
+  const { isViewer } = useAuth();
   const [sims,    setSims]    = useState<NumeroSIM[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -224,19 +226,23 @@ export default function SimsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} /><span>Exporter</span>
-            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
           </button>
+          {!isViewer && (
           <button onClick={() => { setImportResult(null); setImportFile(null); setImportModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} /><span>Importer</span>
-            <span className="text-[10px] bg-white/20 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
           </button>
+          )}
+          {!isViewer && (
           <button onClick={() => { setSelected(null); setForm({ numero: "", imsi: "", categorie: "EMPLOYE", operateur: "", description: "" }); setSimModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
             <Plus size={16} /> Ajouter SIM
           </button>
+          )}
         </div>
       </div>
 
@@ -354,10 +360,12 @@ export default function SimsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
+                  {!isViewer && (
                   <button onClick={e => { e.stopPropagation(); openGerer(s); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-lg text-xs font-semibold transition shadow-sm">
                     <Settings2 size={12} /> Gérer
                   </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -525,10 +533,12 @@ export default function SimsPage() {
               })() : <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center"><p className="text-xs text-gray-400">Aucune affectation active</p></div>}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setDetailSim(null)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Fermer</button>
+                {!isViewer && (
                 <button onClick={() => { openGerer(detailSim); setDetailSim(null); }}
                   className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
                   <Settings2 size={14} /> Gérer
                 </button>
+                )}
               </div>
             </div>
           </div>
@@ -761,7 +771,7 @@ export default function SimsPage() {
       {/* ══ Modal Nouvelle SIM ══════════════════════════════════════════════════ */}
       {simModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSimModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold text-lg text-camublue-900 mb-4">Nouveau numéro SIM</h2>
             <div className="space-y-3">
               {[
