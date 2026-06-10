@@ -312,14 +312,25 @@ export function MaterielsContent() {
   };
 
   const handleRecuperer = async () => {
-    if (!recupererAttr) return;
+    if (!recupererAttr || !gererItem) return;
     setRecupLoading(true);
     try {
-      await attributionService.restituer(recupererAttr.id, {
-        date_restitution:  recupForm.date_restitution,
-        motif_restitution: recupForm.motif_restitution,
-        notes_restitution: null,
-      });
+      if (recupererAttr.simple) {
+        // Matériel attribué via import (sans fiche d'attribution formelle) :
+        // on le repasse simplement à Disponible et on efface le bénéficiaire.
+        await materielService.update(gererItem.id, {
+          statut: "DISPONIBLE",
+          beneficiaire_matricule: null,
+          beneficiaire_nom: null,
+          beneficiaire_prenom: null,
+        });
+      } else {
+        await attributionService.restituer(recupererAttr.id, {
+          date_restitution:  recupForm.date_restitution,
+          motif_restitution: recupForm.motif_restitution,
+          notes_restitution: null,
+        });
+      }
       toast.success("Matériel récupéré — statut repassé à Disponible");
       setRecupererAttr(null);
       setGererItem(null);
@@ -340,8 +351,23 @@ export function MaterielsContent() {
     try {
       const hist = await attributionService.getByMateriel(m.id);
       const active = hist.find((a: any) => a.statut === "ACTIVE");
-      if (!active) { toast.error("Aucune attribution active trouvée"); return; }
-      setRecupererAttr(active);
+      if (!active) {
+        // Pas de fiche d'attribution formelle : matériel issu d'un import,
+        // attribué via les champs Matricule/Nom/Prénom du fichier.
+        if (m.beneficiaire_nom || m.beneficiaire_prenom) {
+          setRecupererAttr({
+            simple: true,
+            employee_nom:       m.beneficiaire_nom,
+            employee_prenom:    m.beneficiaire_prenom,
+            employee_matricule: m.beneficiaire_matricule,
+          });
+        } else {
+          toast.error("Aucune attribution active trouvée");
+          return;
+        }
+      } else {
+        setRecupererAttr(active);
+      }
       setRecupForm({
         date_restitution:  new Date().toISOString().split("T")[0],
         motif_restitution: "CHANGEMENT", notes_restitution: "",
@@ -1293,25 +1319,35 @@ export function MaterielsContent() {
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
                   Actuellement attribué à <strong>{recupererAttr.employee_prenom} {recupererAttr.employee_nom}</strong>
                   {recupererAttr.employee_service ? ` · ${recupererAttr.employee_service}` : ""}
+                  {recupererAttr.employee_matricule ? ` (${recupererAttr.employee_matricule})` : ""}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Date de récupération</label>
-                  <input type="date" value={recupForm.date_restitution}
-                    onChange={e => setRecupForm((p: any) => ({ ...p, date_restitution: e.target.value }))}
-                    className="input-base" />
-                </div>
+                {recupererAttr.simple ? (
+                  <p className="text-xs text-gray-500">
+                    Ce matériel a été importé avec un bénéficiaire renseigné mais sans fiche d'attribution.
+                    La récupération va le repasser au statut <strong>Disponible</strong> et effacer le bénéficiaire.
+                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Date de récupération</label>
+                      <input type="date" value={recupForm.date_restitution}
+                        onChange={e => setRecupForm((p: any) => ({ ...p, date_restitution: e.target.value }))}
+                        className="input-base" />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Motif</label>
-                  <select value={recupForm.motif_restitution}
-                    onChange={e => setRecupForm((p: any) => ({ ...p, motif_restitution: e.target.value }))}
-                    className="input-base">
-                    {[["CHANGEMENT","Changement"],["DEPART","Départ"],["PANNE","Panne"],["FIN_CONTRAT","Fin contrat"],["AUTRE","Autre"]].map(([v,l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Motif</label>
+                      <select value={recupForm.motif_restitution}
+                        onChange={e => setRecupForm((p: any) => ({ ...p, motif_restitution: e.target.value }))}
+                        className="input-base">
+                        {[["CHANGEMENT","Changement"],["DEPART","Départ"],["PANNE","Panne"],["FIN_CONTRAT","Fin contrat"],["AUTRE","Autre"]].map(([v,l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => { setGererMode("menu"); setRecupererAttr(null); }}
