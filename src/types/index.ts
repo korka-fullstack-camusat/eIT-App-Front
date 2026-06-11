@@ -78,6 +78,13 @@ export interface NumeroSIM {
   affectation_active: AffectationSIM | null;
 }
 
+export interface DerniereFactureInfo {
+  mois:        number;
+  annee:       number;
+  operateur:   string | null;
+  montant_ttc: number | null;
+}
+
 export interface SiteGSM {
   id:           number;
   code_site:    string | null;
@@ -86,6 +93,7 @@ export interface SiteGSM {
   localisation: string | null;
   created_at:   string;
   sim_numero:   string | null;
+  derniere_facture: DerniereFactureInfo | null;
 }
 
 export interface Vehicule {

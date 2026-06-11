@@ -239,10 +239,14 @@ export const siteService = {
   importSites: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return ax.post<{ created: number; updated: number; errors: { ligne: number; message: string }[]; total_lignes: number }>(
+    return ax.post<{ created: number; updated: number; affecte?: number; sims_crees?: number; errors: { ligne: number; message: string }[]; total_lignes: number }>(
       "/telephonie/sites/import", form, { headers: { "Content-Type": "multipart/form-data" } }
     ).then(r => r.data);
   },
+  facturation: (id: number) =>
+    ax.get<{ sim_numero: string | null; lignes: { mois: number; annee: number; operateur: string | null; montant: number | null; montant_ttc: number | null }[] }>(
+      `/telephonie/sites/${id}/facturation`
+    ).then(r => r.data),
 };
 
 export const vehiculeService = {

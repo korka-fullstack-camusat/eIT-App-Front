@@ -13,6 +13,10 @@ import type { SiteGSM } from "@/types";
 
 const PAGE_SIZE = 10;
 const EMPTY = { code_site: "", imsi: "", nom: "", localisation: "" };
+const MOIS_LABELS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
 
 // ── Carte statistique ─────────────────────────────────────────────────────────
 function StatCard({ label, value, color, onClick, active }: {
@@ -67,6 +71,10 @@ export default function SitesPage() {
   const toggleCol = (k: SiteColKey) =>
     setExportCols(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
 
+  // ── Historique facturation (modal détail) ────────────────────────────────────
+  const [facturation,        setFacturation]        = useState<{ sim_numero: string | null; lignes: any[] } | null>(null);
+  const [facturationLoading, setFacturationLoading] = useState(false);
+
   // ── Modals ───────────────────────────────────────────────────────────────────
   const [detailSite,  setDetailSite]  = useState<SiteGSM | null>(null);
   const [gererSite,   setGererSite]   = useState<SiteGSM | null>(null);
@@ -88,6 +96,16 @@ export default function SitesPage() {
   }, []);
 
   useEffect(() => { load(); }, []);
+
+  // Charger l'historique de facturation à l'ouverture du détail d'un site
+  useEffect(() => {
+    if (!detailSite) { setFacturation(null); return; }
+    setFacturationLoading(true);
+    siteService.facturation(detailSite.id)
+      .then(setFacturation)
+      .catch(() => setFacturation(null))
+      .finally(() => setFacturationLoading(false));
+  }, [detailSite]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -197,7 +215,7 @@ export default function SitesPage() {
           <button onClick={() => { setImportResult(null); setImportFile(null); setImportModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} /><span>Importer</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
+            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv / .xlsx</span>
           </button>
           )}
           {!isViewer && (
@@ -281,14 +299,15 @@ export default function SitesPage() {
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SiteID</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nom du site</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Numéro SIM</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Dernière facture</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Aucun site</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Aucun site</td></tr>
             ) : paginated.map(s => (
               <tr key={s.id} className="hover:bg-gray-50/50 transition cursor-pointer" onClick={() => setDetailSite(s)}>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{s.imsi ?? <span className="text-gray-300">—</span>}</td>
@@ -305,6 +324,23 @@ export default function SitesPage() {
                   {s.sim_numero
                     ? <div className="flex items-center gap-1.5"><Wifi size={12} className="text-emerald-500 shrink-0" /><span className="font-mono text-sm font-semibold text-gray-800">{s.sim_numero}</span></div>
                     : <div className="flex items-center gap-1.5"><WifiOff size={12} className="text-gray-300 shrink-0" /><span className="text-gray-300 text-xs">Non affecté</span></div>}
+                </td>
+                <td className="px-4 py-3">
+                  {s.derniere_facture ? (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {s.derniere_facture.montant_ttc != null
+                          ? `${Number(s.derniere_facture.montant_ttc).toLocaleString("fr-FR")} F`
+                          : "—"}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {MOIS_LABELS[s.derniere_facture.mois - 1]?.slice(0, 3) ?? s.derniere_facture.mois} {s.derniere_facture.annee}
+                        {s.derniere_facture.operateur ? ` · ${s.derniere_facture.operateur}` : ""}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {!isViewer && (
@@ -515,6 +551,56 @@ export default function SitesPage() {
                   <p className="text-xs text-gray-400 mt-0.5">Assignez depuis la page <span className="font-semibold">Numéros SIM</span></p>
                 </div>
               )}
+
+              {/* ── Historique de facturation (auto, depuis les factures importées) ── */}
+              {detailSite.sim_numero && (
+                <>
+                  <div className="border-t border-gray-100" />
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                      Historique de facturation
+                    </p>
+                    {facturationLoading ? (
+                      <p className="text-xs text-gray-400 text-center py-3">Chargement…</p>
+                    ) : !facturation || facturation.lignes.length === 0 ? (
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                        <p className="text-xs text-gray-400">Aucune valeur trouvée pour ce numéro</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Les montants sont récupérés automatiquement depuis les <span className="font-semibold">factures télécom</span> importées.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border border-gray-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Période</th>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Opérateur</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Montant TTC</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {facturation.lignes.map((l, i) => (
+                              <tr key={i}>
+                                <td className="px-3 py-2 text-gray-700">{MOIS_LABELS[l.mois - 1] ?? l.mois} {l.annee}</td>
+                                <td className="px-3 py-2 text-gray-500">{l.operateur ?? "—"}</td>
+                                <td className="px-3 py-2 text-right font-semibold text-gray-800">
+                                  {l.montant_ttc != null
+                                    ? `${Number(l.montant_ttc).toLocaleString("fr-FR")} F`
+                                    : l.montant != null
+                                      ? `${Number(l.montant).toLocaleString("fr-FR")} F`
+                                      : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setDetailSite(null)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Fermer</button>
                 {!isViewer && (
@@ -605,10 +691,13 @@ export default function SitesPage() {
               {importResult ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-emerald-700"><CheckCircle2 size={18} /><p className="font-semibold text-sm">Import terminé</p></div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className={`grid gap-2 ${importResult.sims_crees ? "grid-cols-5" : "grid-cols-4"}`}>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center"><p className="text-xl font-bold text-emerald-700">{importResult.created}</p><p className="text-xs text-emerald-600 mt-0.5">Créés</p></div>
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center"><p className="text-xl font-bold text-blue-700">{importResult.updated}</p><p className="text-xs text-blue-600 mt-0.5">Mis à jour</p></div>
                     <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center"><p className="text-xl font-bold text-purple-700">{importResult.affecte ?? 0}</p><p className="text-xs text-purple-600 mt-0.5">SIM liés</p></div>
+                    {!!importResult.sims_crees && (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center"><p className="text-xl font-bold text-indigo-700">{importResult.sims_crees}</p><p className="text-xs text-indigo-600 mt-0.5">SIM créés</p></div>
+                    )}
                     <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center"><p className="text-xl font-bold text-red-600">{importResult.errors.length}</p><p className="text-xs text-red-500 mt-0.5">Erreurs</p></div>
                   </div>
                   {importResult.errors.length > 0 && (
@@ -624,20 +713,22 @@ export default function SitesPage() {
                   <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
                     <FileText size={16} className="text-blue-500 shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-semibold text-blue-800">Format CAMUSAT (CSV ou TSV)</p>
+                      <p className="text-xs font-semibold text-blue-800">Format CAMUSAT (CSV/TSV ou Excel)</p>
                       <p className="text-xs text-blue-600 mt-1 font-mono font-semibold">Numéro ; IMSI ; SITES ID ; NOMS SITES</p>
                       <p className="text-xs text-blue-500 mt-1.5">
                         ✓ Le numéro SIM est lié automatiquement au site.<br />
-                        ✓ Ancien format accepté : <span className="font-mono">SiteID;Nom;Localisation</span>
+                        ✓ Fichier .xlsx accepté : feuilles "RMS_Orange" / "RMS_Free" reconnues automatiquement.<br />
+                        ✓ Ancien format CSV accepté : <span className="font-mono">SiteID;Nom;Localisation</span><br />
+                        ✓ Les valeurs de facturation mensuelles s'affichent ensuite automatiquement dans le détail de chaque site, alimentées par les factures importées.
                       </p>
                     </div>
                   </div>
                   <div className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${importFile ? "border-emerald-400 bg-emerald-50" : "border-gray-200 hover:border-camublue-900/40 hover:bg-gray-50"}`}
                     onClick={() => fileInputRef.current?.click()}>
-                    <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={e => setImportFile(e.target.files?.[0] ?? null)} />
+                    <input ref={fileInputRef} type="file" accept=".csv,.tsv,.xlsx" className="hidden" onChange={e => setImportFile(e.target.files?.[0] ?? null)} />
                     {importFile
                       ? <div className="flex items-center justify-center gap-2 text-emerald-700"><CheckCircle2 size={18} /><p className="text-sm font-semibold">{importFile.name}</p></div>
-                      : <><Upload size={24} className="mx-auto mb-2 text-gray-400" /><p className="text-sm text-gray-600 font-medium">Cliquer pour sélectionner un fichier CSV</p></>}
+                      : <><Upload size={24} className="mx-auto mb-2 text-gray-400" /><p className="text-sm text-gray-600 font-medium">Cliquer pour sélectionner un fichier CSV ou Excel</p></>}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={closeImport} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
