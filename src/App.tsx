@@ -8,6 +8,7 @@ import SitesPage      from "@/pages/telephonie/SitesPage";
 import VehiculesPage  from "@/pages/telephonie/VehiculesPage";
 import FacturesPage   from "@/pages/telephonie/FacturesPage";
 import FactureDetailPage from "@/pages/telephonie/FactureDetailPage";
+import ImportGlobalPage  from "@/pages/telephonie/ImportGlobalPage";
 import UsersPage      from "@/pages/UsersPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/vehicules"   element={<ProtectedRoute><VehiculesPage /></ProtectedRoute>} />
       <Route path="/factures"    element={<ProtectedRoute><FacturesPage /></ProtectedRoute>} />
       <Route path="/factures/:id" element={<ProtectedRoute><FactureDetailPage /></ProtectedRoute>} />
+      <Route path="/import-global" element={<ProtectedRoute><ImportGlobalPage /></ProtectedRoute>} />
       <Route path="/users"       element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
 
       {/* Redirection fallback */}

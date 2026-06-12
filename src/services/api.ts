@@ -199,6 +199,23 @@ export const simService = {
       "/telephonie/sims/import", form, { headers: { "Content-Type": "multipart/form-data" } }
     ).then(r => r.data);
   },
+  statsPeriodes: (categorie?: string) =>
+    ax.get<{ mois: number; annee: number }[]>("/telephonie/sims/stats/periodes", { params: { categorie } }).then(r => r.data),
+  statsMensuel: (mois: number, annee: number, categorie?: string) =>
+    ax.get<{ mois: number; annee: number; total: number; nombre_numeros: number }>(
+      "/telephonie/sims/stats/mensuel", { params: { mois, annee, categorie } }
+    ).then(r => r.data),
+  statsEcart: (mois1: number, annee1: number, mois2: number, annee2: number, categorie?: string) =>
+    ax.get<{
+      periode1: { mois: number; annee: number; total: number; nombre_numeros: number };
+      periode2: { mois: number; annee: number; total: number; nombre_numeros: number };
+      ecart: number; ecart_pct: number | null;
+    }>("/telephonie/sims/stats/ecart", { params: { mois1, annee1, mois2, annee2, categorie } }).then(r => r.data),
+  statsEvolution: (categorie?: string) =>
+    ax.get<{
+      mois: number; annee: number; total: number; nombre_numeros: number;
+      ecart: number | null; ecart_pct: number | null;
+    }[]>("/telephonie/sims/stats/evolution", { params: { categorie } }).then(r => r.data),
 };
 
 export const siteService = {
@@ -247,6 +264,23 @@ export const siteService = {
     ax.get<{ sim_numero: string | null; lignes: { mois: number; annee: number; operateur: string | null; montant: number | null; montant_ttc: number | null }[] }>(
       `/telephonie/sites/${id}/facturation`
     ).then(r => r.data),
+  statsPeriodes: () =>
+    ax.get<{ mois: number; annee: number }[]>("/telephonie/sites/stats/periodes").then(r => r.data),
+  statsMensuel: (mois: number, annee: number) =>
+    ax.get<{ mois: number; annee: number; total: number; nombre_numeros: number }>(
+      "/telephonie/sites/stats/mensuel", { params: { mois, annee } }
+    ).then(r => r.data),
+  statsEcart: (mois1: number, annee1: number, mois2: number, annee2: number) =>
+    ax.get<{
+      periode1: { mois: number; annee: number; total: number; nombre_numeros: number };
+      periode2: { mois: number; annee: number; total: number; nombre_numeros: number };
+      ecart: number; ecart_pct: number | null;
+    }>("/telephonie/sites/stats/ecart", { params: { mois1, annee1, mois2, annee2 } }).then(r => r.data),
+  statsEvolution: () =>
+    ax.get<{
+      mois: number; annee: number; total: number; nombre_numeros: number;
+      ecart: number | null; ecart_pct: number | null;
+    }[]>("/telephonie/sites/stats/evolution").then(r => r.data),
 };
 
 export const vehiculeService = {
@@ -290,6 +324,44 @@ export const vehiculeService = {
       "/telephonie/vehicules/import", form, { headers: { "Content-Type": "multipart/form-data" } }
     ).then(r => r.data);
   },
+};
+
+// ── Import global ────────────────────────────────────────────────────────────
+export interface ImportGlobalResult {
+  employes: {
+    created: number; updated: number; affecte: number;
+    errors: string[];
+  };
+  vehicules: {
+    created_sim: number; updated_sim: number;
+    created_vehicule: number; updated_vehicule: number;
+    affecte: number; errors: string[];
+  };
+  sites: {
+    created: number; updated: number; affecte: number;
+    sims_crees: number; relinked: number; errors: { ligne: number; message: string }[];
+    total_lignes: number;
+  };
+}
+
+export interface ImportGlobalLog {
+  id:          number;
+  nom_fichier: string | null;
+  utilisateur: string | null;
+  resultat:    string | null;
+  created_at:  string;
+}
+
+export const importGlobalService = {
+  importer: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<ImportGlobalResult>(
+      "/telephonie/import-global", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
+  historique: () =>
+    ax.get<ImportGlobalLog[]>("/telephonie/import-global/historique").then(r => r.data),
 };
 
 // ── Factures ──────────────────────────────────────────────────────────────────

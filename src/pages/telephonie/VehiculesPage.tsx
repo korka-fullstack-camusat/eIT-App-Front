@@ -3,16 +3,18 @@ import {
   Plus, Settings2, X, Pencil, Trash2, Upload, Download,
   FileText, CheckCircle2, Car, Calendar, Smartphone,
   Search, ChevronLeft, ChevronRight, FileSpreadsheet, Filter,
-  Wifi, WifiOff,
+  Wifi, WifiOff, BarChart3, ArrowLeftRight, TrendingUp, TrendingDown,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { vehiculeService } from "@/services/api";
+import { vehiculeService, simService } from "@/services/api";
 import type { Vehicule } from "@/types";
 
+const MOIS_LABELS = ["", "Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+
 const PAGE_SIZE = 10;
-const EMPTY = { immatriculation: "", marque: "", modele: "", imsi: "", affectation: "" };
+const EMPTY = { immatriculation: "", marque: "", modele: "", imsi: "", imei: "", affectation: "" };
 
 // ── Carte statistique ─────────────────────────────────────────────────────────
 function StatCard({ label, value, color, onClick, active }: {
@@ -34,6 +36,8 @@ export default function VehiculesPage() {
   const { isViewer } = useAuth();
   const [vehicules, setVehicules] = useState<Vehicule[]>([]);
   const [loading,   setLoading]   = useState(true);
+  // Cette page ne gère que les SIM M2M Véhicule (GPS) pour les statistiques de coûts.
+  const cat = "M2M_VEHICULE";
 
   // ── Filtres ──────────────────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState("");
@@ -54,7 +58,10 @@ export default function VehiculesPage() {
     { key: "modele",      label: "Modèle" },
     { key: "affectation", label: "Affectation" },
     { key: "sim_numero",  label: "Numéro SIM" },
+    { key: "imei",        label: "IMEI" },
+    { key: "forfait",     label: "Forfait" },
     { key: "statut_sim",  label: "Statut SIM" },
+    { key: "derniere_facture", label: "Dernière facture" },
     { key: "created_at",  label: "Date création" },
   ] as const;
   type VehColKey = (typeof VEH_COLS)[number]["key"];
@@ -79,6 +86,67 @@ export default function VehiculesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [createModal, setCreateModal] = useState(false);
   const [createForm,  setCreateForm]  = useState<any>(EMPTY);
+
+  // ── Statistiques mensuelles / Écart ─────────────────────────────────────────
+  const [periodes, setPeriodes] = useState<{ mois: number; annee: number }[]>([]);
+  const [statsModal,  setStatsModal]  = useState(false);
+  const [ecartModal,  setEcartModal]  = useState(false);
+  const [statsPeriode, setStatsPeriode] = useState<{ mois: number; annee: number } | null>(null);
+  const [statsResult,  setStatsResult]  = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [ecartP1, setEcartP1] = useState<{ mois: number; annee: number } | null>(null);
+  const [ecartP2, setEcartP2] = useState<{ mois: number; annee: number } | null>(null);
+  const [ecartResult,  setEcartResult]  = useState<any>(null);
+  const [ecartLoading, setEcartLoading] = useState(false);
+  const [evolution, setEvolution] = useState<{
+    mois: number; annee: number; total: number; nombre_numeros: number;
+    ecart: number | null; ecart_pct: number | null;
+  }[]>([]);
+  const [evolutionLoading, setEvolutionLoading] = useState(false);
+
+  useEffect(() => {
+    simService.statsPeriodes(cat).then((p: { mois: number; annee: number }[]) => {
+      setPeriodes(p);
+      if (p.length > 0) {
+        setStatsPeriode(p[0]);
+        setEcartP1(p[1] ?? p[0]);
+        setEcartP2(p[0]);
+      } else {
+        setStatsPeriode(null); setEcartP1(null); setEcartP2(null);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const periodeKey = (p: { mois: number; annee: number }) => `${p.annee}-${p.mois}`;
+  const findPeriode = (key: string) => periodes.find(p => periodeKey(p) === key) ?? null;
+
+  const handleStats = () => {
+    if (!statsPeriode) return;
+    setStatsLoading(true);
+    simService.statsMensuel(statsPeriode.mois, statsPeriode.annee, cat)
+      .then(setStatsResult)
+      .catch(() => toast.error("Erreur lors du calcul"))
+      .finally(() => setStatsLoading(false));
+  };
+
+  const handleEcart = () => {
+    if (!ecartP1 || !ecartP2) return;
+    setEcartLoading(true);
+    simService.statsEcart(ecartP1.mois, ecartP1.annee, ecartP2.mois, ecartP2.annee, cat)
+      .then(setEcartResult)
+      .catch(() => toast.error("Erreur lors du calcul"))
+      .finally(() => setEcartLoading(false));
+  };
+
+  // Charger l'évolution mois par mois à l'ouverture du modal Écart
+  useEffect(() => {
+    if (!ecartModal) return;
+    setEvolutionLoading(true);
+    simService.statsEvolution(cat)
+      .then(setEvolution)
+      .catch(() => setEvolution([]))
+      .finally(() => setEvolutionLoading(false));
+  }, [ecartModal]);
 
   // ── Chargement ───────────────────────────────────────────────────────────────
   const load = useCallback(() => {
@@ -136,7 +204,7 @@ export default function VehiculesPage() {
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const openGerer = (v: Vehicule) => {
     setGererVeh(v); setGererMode("menu");
-    setForm({ immatriculation: v.immatriculation, marque: v.marque ?? "", modele: v.modele ?? "", imsi: v.imsi ?? "", affectation: v.affectation ?? "" });
+    setForm({ immatriculation: v.immatriculation, marque: v.marque ?? "", modele: v.modele ?? "", imsi: v.imsi ?? "", imei: v.imei ?? "", affectation: v.affectation ?? "" });
   };
   const closeGerer = () => { setGererVeh(null); setGererMode("menu"); };
 
@@ -175,6 +243,7 @@ export default function VehiculesPage() {
   const FIELDS = [
     { label: "Immatriculation *", key: "immatriculation", placeholder: "Ex : DK 1234 AB"       },
     { label: "IMSI",              key: "imsi",            placeholder: "Ex : 60803001234567"    },
+    { label: "IMEI",              key: "imei",            placeholder: "Ex : 869943053761236"   },
     { label: "Modèle",            key: "modele",          placeholder: "Ex : Land Cruiser"      },
     { label: "Marque",            key: "marque",          placeholder: "Ex : Toyota"            },
     { label: "Affectation",       key: "affectation",     placeholder: "Ex : Direction"         },
@@ -189,6 +258,14 @@ export default function VehiculesPage() {
           <p className="text-gray-500 text-sm mt-0.5">{loading ? "Chargement…" : `${vehicules.length} véhicule(s)`}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => { setStatsResult(null); setStatsModal(true); }} disabled={periodes.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+            <BarChart3 size={15} /><span>Statistiques</span>
+          </button>
+          <button onClick={() => { setEcartResult(null); setEcartModal(true); }} disabled={periodes.length < 2}
+            className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+            <ArrowLeftRight size={15} /><span>Écart</span>
+          </button>
           <button onClick={() => setExportOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
             <FileSpreadsheet size={15} /><span>Exporter</span>
@@ -271,17 +348,19 @@ export default function VehiculesPage() {
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Numéro SIM</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">IMSI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">IMEI</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Immatriculation</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Modèle</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Forfait</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Dernière facture</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="py-12 text-center text-gray-400">Aucun véhicule</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Aucun véhicule</td></tr>
             ) : paginated.map(v => (
               <tr key={v.id} className="hover:bg-gray-50/50 transition cursor-pointer" onClick={() => setDetailVeh(v)}>
                 {/* Numéro SIM */}
@@ -290,9 +369,9 @@ export default function VehiculesPage() {
                     ? <div className="flex items-center gap-1.5"><Wifi size={12} className="text-emerald-500 shrink-0" /><span className="font-mono text-sm font-semibold text-gray-800">{v.sim_numero}</span></div>
                     : <div className="flex items-center gap-1.5"><WifiOff size={12} className="text-gray-300 shrink-0" /><span className="text-gray-300 text-xs">—</span></div>}
                 </td>
-                {/* IMSI — champ à venir via enrichissement */}
+                {/* IMEI */}
                 <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                  <span className="text-gray-300">—</span>
+                  {v.imei || <span className="text-gray-300">—</span>}
                 </td>
                 {/* Immatriculation */}
                 <td className="px-4 py-3 font-mono font-semibold text-gray-800">{v.immatriculation}</td>
@@ -302,6 +381,16 @@ export default function VehiculesPage() {
                     ? <p className="text-sm text-gray-700">{v.modele}</p>
                     : <span className="text-gray-300 text-xs">—</span>}
                   {v.marque && <p className="text-xs text-gray-400">{v.marque}</p>}
+                </td>
+                {/* Forfait */}
+                <td className="px-4 py-3 text-center text-xs text-gray-600">
+                  {v.forfait != null ? `${v.forfait.toLocaleString("fr-FR")} F` : <span className="text-gray-300">—</span>}
+                </td>
+                {/* Dernière facture */}
+                <td className="px-4 py-3 text-center">
+                  {v.derniere_facture?.montant_ttc != null
+                    ? <span className="font-semibold text-gray-700">{v.derniere_facture.montant_ttc.toLocaleString("fr-FR")}</span>
+                    : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   {!isViewer && (
@@ -469,12 +558,19 @@ export default function VehiculesPage() {
                 </div>
               </div>
               <div className="border-t border-gray-100" />
+              {detailVeh.imei && (
+                <div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">IMEI (boîtier GPS)</p><p className="text-sm font-mono text-gray-700 mt-1">{detailVeh.imei}</p></div>
+              )}
               {detailVeh.sim_numero ? (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                   <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">Numéro SIM affecté</p>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-emerald-200 flex items-center justify-center shrink-0"><Smartphone size={16} className="text-emerald-700" /></div>
                     <p className="text-base font-mono font-bold text-emerald-800">{detailVeh.sim_numero}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div><p className="text-xs text-emerald-600 uppercase tracking-wide font-semibold">Forfait</p><p className="text-sm font-bold text-emerald-800 mt-0.5">{detailVeh.forfait != null ? `${detailVeh.forfait.toLocaleString("fr-FR")} F` : "—"}</p></div>
+                    <div><p className="text-xs text-emerald-600 uppercase tracking-wide font-semibold">Dernière facture</p><p className="text-sm font-bold text-emerald-800 mt-0.5">{detailVeh.derniere_facture?.montant_ttc != null ? `${detailVeh.derniere_facture.montant_ttc.toLocaleString("fr-FR")} F (${MOIS_LABELS[detailVeh.derniere_facture.mois]} ${detailVeh.derniere_facture.annee})` : "—"}</p></div>
                   </div>
                 </div>
               ) : (
@@ -637,6 +733,184 @@ export default function VehiculesPage() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
               <button onClick={handleCreate} className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">Créer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Statistiques mensuelles ════════════════════════════════════════ */}
+      {statsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setStatsModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center"><BarChart3 size={18} className="text-white" /></div>
+                <p className="text-white font-bold text-sm">Coût total des SIM véhicules</p>
+              </div>
+              <button onClick={() => setStatsModal(false)} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><X size={14} className="text-white" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Période (mois facturé)</label>
+                <select value={statsPeriode ? periodeKey(statsPeriode) : ""}
+                  onChange={e => setStatsPeriode(findPeriode(e.target.value))}
+                  className="input-base">
+                  {periodes.map(p => (
+                    <option key={periodeKey(p)} value={periodeKey(p)}>{MOIS_LABELS[p.mois]} {p.annee}</option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={handleStats} disabled={!statsPeriode || statsLoading}
+                className="w-full bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                {statsLoading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Calcul…</> : "Calculer"}
+              </button>
+              {statsResult && (
+                <div className="p-4 bg-camublue-900/5 border border-camublue-900/15 rounded-xl text-center">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">
+                    {MOIS_LABELS[statsResult.mois]} {statsResult.annee}
+                  </p>
+                  <p className="text-3xl font-black text-camublue-900 mt-1">
+                    {Math.round(statsResult.total).toLocaleString("fr-FR")} <span className="text-base font-semibold">FCFA</span>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {statsResult.nombre_numeros} numéro(s) SIM facturé(s)
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Écart entre deux mois ══════════════════════════════════════════ */}
+      {ecartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEcartModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-camublue-900 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center"><ArrowLeftRight size={18} className="text-white" /></div>
+                <p className="text-white font-bold text-sm">Écart entre deux mois</p>
+              </div>
+              <button onClick={() => setEcartModal(false)} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><X size={14} className="text-white" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Période 1</label>
+                  <select value={ecartP1 ? periodeKey(ecartP1) : ""}
+                    onChange={e => setEcartP1(findPeriode(e.target.value))}
+                    className="input-base">
+                    {periodes.map(p => (
+                      <option key={periodeKey(p)} value={periodeKey(p)}>{MOIS_LABELS[p.mois]} {p.annee}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Période 2</label>
+                  <select value={ecartP2 ? periodeKey(ecartP2) : ""}
+                    onChange={e => setEcartP2(findPeriode(e.target.value))}
+                    className="input-base">
+                    {periodes.map(p => (
+                      <option key={periodeKey(p)} value={periodeKey(p)}>{MOIS_LABELS[p.mois]} {p.annee}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button onClick={handleEcart} disabled={!ecartP1 || !ecartP2 || ecartLoading}
+                className="w-full bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                {ecartLoading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Calcul…</> : "Comparer"}
+              </button>
+              {ecartResult && (() => {
+                const ecart    = ecartResult.ecart as number;
+                const ecartPct = ecartResult.ecart_pct as number | null;
+                const hausse   = ecart > 0;
+                const baisse   = ecart < 0;
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">
+                          {MOIS_LABELS[ecartResult.periode1.mois]} {ecartResult.periode1.annee}
+                        </p>
+                        <p className="text-lg font-bold text-gray-800 mt-1">
+                          {Math.round(ecartResult.periode1.total).toLocaleString("fr-FR")} F
+                        </p>
+                      </div>
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">
+                          {MOIS_LABELS[ecartResult.periode2.mois]} {ecartResult.periode2.annee}
+                        </p>
+                        <p className="text-lg font-bold text-gray-800 mt-1">
+                          {Math.round(ecartResult.periode2.total).toLocaleString("fr-FR")} F
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center border ${
+                      hausse ? "bg-red-50 border-red-200" : baisse ? "bg-emerald-50 border-emerald-200" : "bg-gray-50 border-gray-200"
+                    }`}>
+                      <div className="flex items-center justify-center gap-2">
+                        {hausse && <TrendingUp size={18} className="text-red-600" />}
+                        {baisse && <TrendingDown size={18} className="text-emerald-600" />}
+                        <p className={`text-2xl font-black ${hausse ? "text-red-600" : baisse ? "text-emerald-600" : "text-gray-600"}`}>
+                          {hausse ? "+" : ""}{Math.round(ecart).toLocaleString("fr-FR")} <span className="text-sm font-semibold">FCFA</span>
+                        </p>
+                      </div>
+                      {ecartPct != null && (
+                        <p className={`text-xs mt-1 font-semibold ${hausse ? "text-red-500" : baisse ? "text-emerald-500" : "text-gray-400"}`}>
+                          {hausse ? "+" : ""}{ecartPct.toFixed(1)} % par rapport à la période 1
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Évolution mois par mois ─ écart par rapport au mois précédent */}
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Évolution mois par mois</p>
+                {evolutionLoading ? (
+                  <p className="text-sm text-gray-400 text-center py-3">Chargement…</p>
+                ) : evolution.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-3">Aucune donnée disponible</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Période</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Écart</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Écart %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {evolution.map(p => {
+                          const hausse = (p.ecart ?? 0) > 0;
+                          const baisse = (p.ecart ?? 0) < 0;
+                          return (
+                            <tr key={`${p.annee}-${p.mois}`}>
+                              <td className="px-3 py-2 text-gray-700">{MOIS_LABELS[p.mois]} {p.annee}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-gray-800">
+                                {Math.round(p.total).toLocaleString("fr-FR")} F
+                              </td>
+                              <td className={`px-3 py-2 text-right font-semibold ${
+                                hausse ? "text-red-600" : baisse ? "text-emerald-600" : "text-gray-400"
+                              }`}>
+                                {p.ecart == null ? "—" : `${hausse ? "+" : ""}${Math.round(p.ecart).toLocaleString("fr-FR")} F`}
+                              </td>
+                              <td className={`px-3 py-2 text-right font-semibold ${
+                                hausse ? "text-red-600" : baisse ? "text-emerald-600" : "text-gray-400"
+                              }`}>
+                                {p.ecart_pct == null ? "—" : `${hausse ? "+" : ""}${p.ecart_pct.toFixed(1)} %`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { materielService, simService, attributionService, factureService } from "@/services/api";
-import type { FactureTelecom, NumeroSIM, Materiel, Attribution } from "@/types";
+import { materielService, simService, attributionService, factureService, siteService } from "@/services/api";
+import type { FactureTelecom, NumeroSIM, Materiel, Attribution, SiteGSM } from "@/types";
 
 interface Stats       { total: number; disponible: number; attribue: number; maintenance: number; reforme: number; }
 interface TypeRow     { type: string; count: number; }
@@ -234,6 +234,23 @@ export default function DashboardPage() {
   const [materiels,    setMateriels]    = useState<Materiel[]>([]);
   const [attributions, setAttributions] = useState<Attribution[]>([]);
   const [monthModal, setMonthModal] = useState<number | null>(null);
+  const [sitesRMS,    setSitesRMS]    = useState<SiteGSM[]>([]);
+  const [rmsPeriodeIdx, setRmsPeriodeIdx] = useState<number | null>(null);
+  const [telSubSection, setTelSubSection] = useState<"sims" | "rms" | "sims-cout" | "vehicules-cout">("sims");
+  const [sitesEvolution, setSitesEvolution] = useState<{
+    mois: number; annee: number; total: number; nombre_numeros: number;
+    ecart: number | null; ecart_pct: number | null;
+  }[]>([]);
+  const [simsCoutEvolution, setSimsCoutEvolution] = useState<{
+    mois: number; annee: number; total: number; nombre_numeros: number;
+    ecart: number | null; ecart_pct: number | null;
+  }[]>([]);
+  const [simsCoutPeriodeIdx, setSimsCoutPeriodeIdx] = useState<number | null>(null);
+  const [vehiculesCoutEvolution, setVehiculesCoutEvolution] = useState<{
+    mois: number; annee: number; total: number; nombre_numeros: number;
+    ecart: number | null; ecart_pct: number | null;
+  }[]>([]);
+  const [vehiculesCoutPeriodeIdx, setVehiculesCoutPeriodeIdx] = useState<number | null>(null);
 
   const currentYear = new Date().getFullYear();
 
@@ -247,6 +264,10 @@ export default function DashboardPage() {
     simService.getAll().then(setSims).catch(() => {});
     factureService.getAll({ annee: currentYear })
       .then(setFactures).catch(() => {}).finally(() => setFactLoading(false));
+    siteService.getAll().then(setSitesRMS).catch(() => {});
+    siteService.statsEvolution().then(setSitesEvolution).catch(() => {});
+    simService.statsEvolution("EMPLOYE").then(setSimsCoutEvolution).catch(() => {});
+    simService.statsEvolution("M2M_VEHICULE").then(setVehiculesCoutEvolution).catch(() => {});
   }, []);
 
   // Alertes
@@ -323,6 +344,30 @@ export default function DashboardPage() {
   };
   const maxSimCategorie = Math.max(1, ...Array.from(simByCategorie.values()));
   const simActives = simByStatut.get("ACTIVE") ?? 0;
+
+  // ── Statistiques Sites RMS ──────────────────────────────────────────────────
+  const sitesOrange = sitesRMS.filter(s => (s.sim_operateur ?? "Orange") === "Orange").length;
+  const sitesFree   = sitesRMS.filter(s => s.sim_operateur === "Free").length;
+  const sitesAvecSim = sitesRMS.filter(s => s.sim_numero).length;
+  const sitesSansSim = sitesRMS.length - sitesAvecSim;
+
+  const sortedEvolution = [...sitesEvolution].sort((a, b) => (a.annee * 100 + a.mois) - (b.annee * 100 + b.mois));
+  const rmsCoutData = sortedEvolution.map(p => ({ label: `${MOIS_COURTS[p.mois]} ${p.annee}`, value: p.total }));
+  const dernierRmsPeriode = sortedEvolution[sortedEvolution.length - 1] ?? null;
+  const rmsRepartitionSegments = [
+    { label: "RMS_Orange", value: sitesOrange, color: "#f97316" },
+    { label: "RMS_Free",   value: sitesFree,   color: "#ef4444" },
+  ];
+
+  // ── Statistiques SIM Employés — Coûts ──────────────────────────────────────
+  const sortedSimsCoutEvolution = [...simsCoutEvolution].sort((a, b) => (a.annee * 100 + a.mois) - (b.annee * 100 + b.mois));
+  const simsCoutData = sortedSimsCoutEvolution.map(p => ({ label: `${MOIS_COURTS[p.mois]} ${p.annee}`, value: p.total }));
+  const dernierSimsCoutPeriode = sortedSimsCoutEvolution[sortedSimsCoutEvolution.length - 1] ?? null;
+
+  // ── Statistiques Véhicules M2M — Coûts ─────────────────────────────────────
+  const sortedVehiculesCoutEvolution = [...vehiculesCoutEvolution].sort((a, b) => (a.annee * 100 + a.mois) - (b.annee * 100 + b.mois));
+  const vehiculesCoutData = sortedVehiculesCoutEvolution.map(p => ({ label: `${MOIS_COURTS[p.mois]} ${p.annee}`, value: p.total }));
+  const dernierVehiculesCoutPeriode = sortedVehiculesCoutEvolution[sortedVehiculesCoutEvolution.length - 1] ?? null;
 
   // ── Évolutions mensuelles (année courante) ─────────────────────────────────
   const monthOf = (d: string | null) => {
@@ -447,6 +492,44 @@ export default function DashboardPage() {
       {/* ══════════════════════════════ TÉLÉPHONIE ══════════════════════════════ */}
       {section === "telephonie" && (
         <>
+          {/* Sous-onglets Téléphonie */}
+          <div className="flex items-center gap-2 mb-5">
+            <button onClick={() => setTelSubSection("sims")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition border ${
+                telSubSection === "sims"
+                  ? "bg-camublue-900 text-white border-camublue-900 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
+              Vue d'ensemble SIM
+            </button>
+            <button onClick={() => setTelSubSection("rms")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition border ${
+                telSubSection === "rms"
+                  ? "bg-camublue-900 text-white border-camublue-900 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
+              Sites RMS — Coûts &amp; répartition
+            </button>
+            <button onClick={() => setTelSubSection("sims-cout")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition border ${
+                telSubSection === "sims-cout"
+                  ? "bg-camublue-900 text-white border-camublue-900 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
+              SIM Employés — Coûts
+            </button>
+            <button onClick={() => setTelSubSection("vehicules-cout")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition border ${
+                telSubSection === "vehicules-cout"
+                  ? "bg-camublue-900 text-white border-camublue-900 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
+              Véhicules M2M — Coûts
+            </button>
+          </div>
+
+          {telSubSection === "sims" && (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
             <KpiCard label="Cartes SIM"  value={sims.length} icon={<Smartphone size={20}/>} bg="bg-purple-100"  text="text-purple-600"  />
             <KpiCard label="Actives"     value={simActives}  icon={<CheckCircle size={20}/>} bg="bg-emerald-100" text="text-emerald-600" />
@@ -510,6 +593,412 @@ export default function DashboardPage() {
               </div>
             ) : <p className="text-gray-400 text-sm">Aucune SIM enregistrée</p>}
           </div>
+
+          {/* Bouton Suivant ── vers Sites RMS */}
+          <div className="flex justify-end mb-5">
+            <button onClick={() => setTelSubSection("rms")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <span>Suivant : Sites RMS</span><ArrowRight size={15} />
+            </button>
+          </div>
+          </>
+          )}
+
+          {telSubSection === "rms" && (
+          <>
+          {/* ══ Sites RMS ════════════════════════════════════════════════════════ */}
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-camublue-900" />
+              <h2 className="font-bold text-camublue-900 text-base">Sites RMS — Coûts &amp; répartition</h2>
+            </div>
+            <button onClick={() => setTelSubSection("sims")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+              <ArrowRight size={15} className="rotate-180" /><span>Retour : Vue d'ensemble SIM</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+            <KpiCard label="Sites RMS"       value={sitesRMS.length} icon={<MapPin size={20}/>}    bg="bg-blue-100"   text="text-blue-600"   />
+            <KpiCard label="RMS_Orange"      value={sitesOrange}     icon={<Smartphone size={20}/>} bg="bg-orange-100" text="text-orange-600" />
+            <KpiCard label="RMS_Free"        value={sitesFree}       icon={<Smartphone size={20}/>} bg="bg-red-100"    text="text-red-600"    />
+            <KpiCard label="Sites sans SIM"  value={sitesSansSim}    icon={<AlertTriangle size={20}/>} bg="bg-amber-100" text="text-amber-600" />
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-5 mb-5">
+            {/* Courbe d'évolution du coût total */}
+            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <BarChart2 size={15} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Coût total facturé — Sites RMS</h2>
+                </div>
+                {dernierRmsPeriode && dernierRmsPeriode.ecart != null && (
+                  <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${
+                    dernierRmsPeriode.ecart > 0 ? "bg-red-50 text-red-600" :
+                    dernierRmsPeriode.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                  }`}>
+                    {dernierRmsPeriode.ecart > 0 ? <TrendingUp size={12}/> : dernierRmsPeriode.ecart < 0 ? <TrendingDown size={12}/> : null}
+                    {dernierRmsPeriode.ecart > 0 ? "+" : ""}{Math.round(dernierRmsPeriode.ecart).toLocaleString("fr-FR")} F
+                    {dernierRmsPeriode.ecart_pct != null && ` (${dernierRmsPeriode.ecart_pct > 0 ? "+" : ""}${dernierRmsPeriode.ecart_pct.toFixed(1)}%)`}
+                  </span>
+                )}
+              </div>
+              {rmsCoutData.length > 0 ? (
+                <>
+                  <LineChart data={rmsCoutData} colorHex="#06b6d4"
+                    onPointClick={(i) => setRmsPeriodeIdx(prev => prev === i ? null : i)} />
+                  <p className="text-[11px] text-gray-400 mt-1 text-center">Cliquez sur un point pour afficher le détail du mois</p>
+                  {rmsPeriodeIdx != null && sortedEvolution[rmsPeriodeIdx] && (() => {
+                    const p = sortedEvolution[rmsPeriodeIdx];
+                    return (
+                      <div className="mt-3 p-4 bg-cyan-50 border border-cyan-100 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-cyan-600 font-semibold uppercase tracking-wide">{MOIS_LABELS[p.mois]} {p.annee}</p>
+                          <p className="text-xl font-black text-gray-800 mt-0.5">{Math.round(p.total).toLocaleString("fr-FR")} <span className="text-sm font-semibold text-gray-400">FCFA</span></p>
+                          <p className="text-xs text-gray-500 mt-0.5">{p.nombre_numeros.toLocaleString("fr-FR")} numéro(s) facturé(s)</p>
+                        </div>
+                        {p.ecart != null && (
+                          <span className={`flex items-center gap-1 text-sm font-bold px-2.5 py-1.5 rounded-lg ${
+                            p.ecart > 0 ? "bg-red-50 text-red-600" : p.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                          }`}>
+                            {p.ecart > 0 ? <TrendingUp size={14}/> : p.ecart < 0 ? <TrendingDown size={14}/> : null}
+                            {p.ecart > 0 ? "+" : ""}{Math.round(p.ecart).toLocaleString("fr-FR")} F
+                            {p.ecart_pct != null && ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)`}
+                          </span>
+                        )}
+                        <button onClick={() => setRmsPeriodeIdx(null)} className="text-gray-300 hover:text-gray-500 transition">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </>
+              ) : (
+                <p className="text-gray-400 text-sm">Aucune facture associée aux sites RMS pour le moment</p>
+              )}
+            </div>
+
+            {/* Répartition Orange / Free */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Répartition par opérateur</h2>
+              </div>
+              {sitesRMS.length > 0 ? (
+                <>
+                  <DonutChart segments={rmsRepartitionSegments} total={sitesOrange + sitesFree} />
+                  <div className="flex justify-center gap-4 mt-4">
+                    {rmsRepartitionSegments.map(s => (
+                      <div key={s.label} className="flex items-center gap-1.5 text-xs">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                        <span className="text-gray-500">{s.label}</span>
+                        <span className="font-bold text-gray-700">{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <p className="text-gray-400 text-sm">Aucun site enregistré</p>}
+            </div>
+          </div>
+
+          {/* Détail mensuel des coûts */}
+          {sortedEvolution.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 mb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Receipt size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Détail mensuel — Sites RMS</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 uppercase tracking-wide">
+                      <th className="py-2 font-semibold">Période</th>
+                      <th className="py-2 font-semibold text-right">Numéros facturés</th>
+                      <th className="py-2 font-semibold text-right">Total (FCFA)</th>
+                      <th className="py-2 font-semibold text-right">Écart</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {sortedEvolution.map((p, i) => (
+                      <tr key={`${p.annee}-${p.mois}`}
+                        onClick={() => setRmsPeriodeIdx(prev => prev === i ? null : i)}
+                        className={`cursor-pointer transition ${rmsPeriodeIdx === i ? "bg-cyan-50" : "hover:bg-gray-50"}`}>
+                        <td className="py-2 text-gray-700">{MOIS_LABELS[p.mois]} {p.annee}</td>
+                        <td className="py-2 text-right text-gray-500">{p.nombre_numeros.toLocaleString("fr-FR")}</td>
+                        <td className="py-2 text-right font-bold text-gray-800">{Math.round(p.total).toLocaleString("fr-FR")}</td>
+                        <td className={`py-2 text-right font-semibold ${
+                          (p.ecart ?? 0) > 0 ? "text-red-600" : (p.ecart ?? 0) < 0 ? "text-emerald-600" : "text-gray-400"
+                        }`}>
+                          {p.ecart == null ? "—" : `${p.ecart > 0 ? "+" : ""}${Math.round(p.ecart).toLocaleString("fr-FR")} F${p.ecart_pct != null ? ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)` : ""}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Bouton Suivant ── vers SIM Employés - Coûts */}
+          <div className="flex justify-end mb-5">
+            <button onClick={() => setTelSubSection("sims-cout")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <span>Suivant : SIM Employés — Coûts</span><ArrowRight size={15} />
+            </button>
+          </div>
+          </>
+          )}
+
+          {telSubSection === "sims-cout" && (
+          <>
+          {/* ══ SIM Employés — Coûts ════════════════════════════════════════════ */}
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Smartphone size={16} className="text-camublue-900" />
+              <h2 className="font-bold text-camublue-900 text-base">SIM Employés — Coûts</h2>
+            </div>
+            <button onClick={() => setTelSubSection("rms")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+              <ArrowRight size={15} className="rotate-180" /><span>Retour : Sites RMS</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+            <KpiCard label="SIM Employés"     value={simByCategorie.get("EMPLOYE") ?? 0} icon={<Smartphone size={20}/>} bg="bg-purple-100" text="text-purple-600" />
+            <KpiCard label="Périodes facturées" value={sortedSimsCoutEvolution.length}    icon={<Receipt size={20}/>}   bg="bg-blue-100"   text="text-blue-600"   />
+            <KpiCard label="Dernier total"
+              value={dernierSimsCoutPeriode ? Math.round(dernierSimsCoutPeriode.total) : 0}
+              icon={<Wallet size={20}/>} bg="bg-emerald-100" text="text-emerald-600" />
+            <KpiCard label="Numéros facturés (dernier mois)"
+              value={dernierSimsCoutPeriode ? dernierSimsCoutPeriode.nombre_numeros : 0}
+              icon={<Phone size={20}/>} bg="bg-amber-100" text="text-amber-600" />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 mb-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart2 size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Coût total facturé — SIM Employés</h2>
+              </div>
+              {dernierSimsCoutPeriode && dernierSimsCoutPeriode.ecart != null && (
+                <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${
+                  dernierSimsCoutPeriode.ecart > 0 ? "bg-red-50 text-red-600" :
+                  dernierSimsCoutPeriode.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                }`}>
+                  {dernierSimsCoutPeriode.ecart > 0 ? <TrendingUp size={12}/> : dernierSimsCoutPeriode.ecart < 0 ? <TrendingDown size={12}/> : null}
+                  {dernierSimsCoutPeriode.ecart > 0 ? "+" : ""}{Math.round(dernierSimsCoutPeriode.ecart).toLocaleString("fr-FR")} F
+                  {dernierSimsCoutPeriode.ecart_pct != null && ` (${dernierSimsCoutPeriode.ecart_pct > 0 ? "+" : ""}${dernierSimsCoutPeriode.ecart_pct.toFixed(1)}%)`}
+                </span>
+              )}
+            </div>
+            {simsCoutData.length > 0 ? (
+              <>
+                <LineChart data={simsCoutData} colorHex="#8b5cf6"
+                  onPointClick={(i) => setSimsCoutPeriodeIdx(prev => prev === i ? null : i)} />
+                <p className="text-[11px] text-gray-400 mt-1 text-center">Cliquez sur un point pour afficher le détail du mois</p>
+                {simsCoutPeriodeIdx != null && sortedSimsCoutEvolution[simsCoutPeriodeIdx] && (() => {
+                  const p = sortedSimsCoutEvolution[simsCoutPeriodeIdx];
+                  return (
+                    <div className="mt-3 p-4 bg-purple-50 border border-purple-100 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">{MOIS_LABELS[p.mois]} {p.annee}</p>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{Math.round(p.total).toLocaleString("fr-FR")} <span className="text-sm font-semibold text-gray-400">FCFA</span></p>
+                        <p className="text-xs text-gray-500 mt-0.5">{p.nombre_numeros.toLocaleString("fr-FR")} numéro(s) facturé(s)</p>
+                      </div>
+                      {p.ecart != null && (
+                        <span className={`flex items-center gap-1 text-sm font-bold px-2.5 py-1.5 rounded-lg ${
+                          p.ecart > 0 ? "bg-red-50 text-red-600" : p.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                        }`}>
+                          {p.ecart > 0 ? <TrendingUp size={14}/> : p.ecart < 0 ? <TrendingDown size={14}/> : null}
+                          {p.ecart > 0 ? "+" : ""}{Math.round(p.ecart).toLocaleString("fr-FR")} F
+                          {p.ecart_pct != null && ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)`}
+                        </span>
+                      )}
+                      <button onClick={() => setSimsCoutPeriodeIdx(null)} className="text-gray-300 hover:text-gray-500 transition">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <p className="text-gray-400 text-sm">Aucune facture associée aux SIM Employés pour le moment</p>
+            )}
+          </div>
+
+          {/* Détail mensuel des coûts */}
+          {sortedSimsCoutEvolution.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 mb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Receipt size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Détail mensuel — SIM Employés</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 uppercase tracking-wide">
+                      <th className="py-2 font-semibold">Période</th>
+                      <th className="py-2 font-semibold text-right">Numéros facturés</th>
+                      <th className="py-2 font-semibold text-right">Total (FCFA)</th>
+                      <th className="py-2 font-semibold text-right">Écart</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {sortedSimsCoutEvolution.map((p, i) => (
+                      <tr key={`${p.annee}-${p.mois}`}
+                        onClick={() => setSimsCoutPeriodeIdx(prev => prev === i ? null : i)}
+                        className={`cursor-pointer transition ${simsCoutPeriodeIdx === i ? "bg-purple-50" : "hover:bg-gray-50"}`}>
+                        <td className="py-2 text-gray-700">{MOIS_LABELS[p.mois]} {p.annee}</td>
+                        <td className="py-2 text-right text-gray-500">{p.nombre_numeros.toLocaleString("fr-FR")}</td>
+                        <td className="py-2 text-right font-bold text-gray-800">{Math.round(p.total).toLocaleString("fr-FR")}</td>
+                        <td className={`py-2 text-right font-semibold ${
+                          (p.ecart ?? 0) > 0 ? "text-red-600" : (p.ecart ?? 0) < 0 ? "text-emerald-600" : "text-gray-400"
+                        }`}>
+                          {p.ecart == null ? "—" : `${p.ecart > 0 ? "+" : ""}${Math.round(p.ecart).toLocaleString("fr-FR")} F${p.ecart_pct != null ? ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)` : ""}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Bouton Suivant ── vers Véhicules M2M - Coûts */}
+          <div className="flex justify-end mb-5">
+            <button onClick={() => setTelSubSection("vehicules-cout")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <span>Suivant : Véhicules M2M — Coûts</span><ArrowRight size={15} />
+            </button>
+          </div>
+          </>
+          )}
+
+          {telSubSection === "vehicules-cout" && (
+          <>
+          {/* ══ Véhicules M2M — Coûts ════════════════════════════════════════════ */}
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Smartphone size={16} className="text-camublue-900" />
+              <h2 className="font-bold text-camublue-900 text-base">Véhicules M2M — Coûts</h2>
+            </div>
+            <button onClick={() => setTelSubSection("sims-cout")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+              <ArrowRight size={15} className="rotate-180" /><span>Retour : SIM Employés</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+            <KpiCard label="SIM Véhicules M2M" value={simByCategorie.get("M2M_VEHICULE") ?? 0} icon={<Smartphone size={20}/>} bg="bg-purple-100" text="text-purple-600" />
+            <KpiCard label="Périodes facturées" value={sortedVehiculesCoutEvolution.length}    icon={<Receipt size={20}/>}   bg="bg-blue-100"   text="text-blue-600"   />
+            <KpiCard label="Dernier total"
+              value={dernierVehiculesCoutPeriode ? Math.round(dernierVehiculesCoutPeriode.total) : 0}
+              icon={<Wallet size={20}/>} bg="bg-emerald-100" text="text-emerald-600" />
+            <KpiCard label="Numéros facturés (dernier mois)"
+              value={dernierVehiculesCoutPeriode ? dernierVehiculesCoutPeriode.nombre_numeros : 0}
+              icon={<Phone size={20}/>} bg="bg-amber-100" text="text-amber-600" />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 mb-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart2 size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Coût total facturé — Véhicules M2M</h2>
+              </div>
+              {dernierVehiculesCoutPeriode && dernierVehiculesCoutPeriode.ecart != null && (
+                <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${
+                  dernierVehiculesCoutPeriode.ecart > 0 ? "bg-red-50 text-red-600" :
+                  dernierVehiculesCoutPeriode.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                }`}>
+                  {dernierVehiculesCoutPeriode.ecart > 0 ? <TrendingUp size={12}/> : dernierVehiculesCoutPeriode.ecart < 0 ? <TrendingDown size={12}/> : null}
+                  {dernierVehiculesCoutPeriode.ecart > 0 ? "+" : ""}{Math.round(dernierVehiculesCoutPeriode.ecart).toLocaleString("fr-FR")} F
+                  {dernierVehiculesCoutPeriode.ecart_pct != null && ` (${dernierVehiculesCoutPeriode.ecart_pct > 0 ? "+" : ""}${dernierVehiculesCoutPeriode.ecart_pct.toFixed(1)}%)`}
+                </span>
+              )}
+            </div>
+            {vehiculesCoutData.length > 0 ? (
+              <>
+                <LineChart data={vehiculesCoutData} colorHex="#0ea5e9"
+                  onPointClick={(i) => setVehiculesCoutPeriodeIdx(prev => prev === i ? null : i)} />
+                <p className="text-[11px] text-gray-400 mt-1 text-center">Cliquez sur un point pour afficher le détail du mois</p>
+                {vehiculesCoutPeriodeIdx != null && sortedVehiculesCoutEvolution[vehiculesCoutPeriodeIdx] && (() => {
+                  const p = sortedVehiculesCoutEvolution[vehiculesCoutPeriodeIdx];
+                  return (
+                    <div className="mt-3 p-4 bg-sky-50 border border-sky-100 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-sky-600 font-semibold uppercase tracking-wide">{MOIS_LABELS[p.mois]} {p.annee}</p>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{Math.round(p.total).toLocaleString("fr-FR")} <span className="text-sm font-semibold text-gray-400">FCFA</span></p>
+                        <p className="text-xs text-gray-500 mt-0.5">{p.nombre_numeros.toLocaleString("fr-FR")} numéro(s) facturé(s)</p>
+                      </div>
+                      {p.ecart != null && (
+                        <span className={`flex items-center gap-1 text-sm font-bold px-2.5 py-1.5 rounded-lg ${
+                          p.ecart > 0 ? "bg-red-50 text-red-600" : p.ecart < 0 ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"
+                        }`}>
+                          {p.ecart > 0 ? <TrendingUp size={14}/> : p.ecart < 0 ? <TrendingDown size={14}/> : null}
+                          {p.ecart > 0 ? "+" : ""}{Math.round(p.ecart).toLocaleString("fr-FR")} F
+                          {p.ecart_pct != null && ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)`}
+                        </span>
+                      )}
+                      <button onClick={() => setVehiculesCoutPeriodeIdx(null)} className="text-gray-300 hover:text-gray-500 transition">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <p className="text-gray-400 text-sm">Aucune facture associée aux SIM Véhicules M2M pour le moment</p>
+            )}
+          </div>
+
+          {/* Détail mensuel des coûts */}
+          {sortedVehiculesCoutEvolution.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 mb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Receipt size={15} className="text-camublue-900" />
+                <h2 className="font-bold text-gray-700 text-sm">Détail mensuel — Véhicules M2M</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 uppercase tracking-wide">
+                      <th className="py-2 font-semibold">Période</th>
+                      <th className="py-2 font-semibold text-right">Numéros facturés</th>
+                      <th className="py-2 font-semibold text-right">Total (FCFA)</th>
+                      <th className="py-2 font-semibold text-right">Écart</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {sortedVehiculesCoutEvolution.map((p, i) => (
+                      <tr key={`${p.annee}-${p.mois}`}
+                        onClick={() => setVehiculesCoutPeriodeIdx(prev => prev === i ? null : i)}
+                        className={`cursor-pointer transition ${vehiculesCoutPeriodeIdx === i ? "bg-sky-50" : "hover:bg-gray-50"}`}>
+                        <td className="py-2 text-gray-700">{MOIS_LABELS[p.mois]} {p.annee}</td>
+                        <td className="py-2 text-right text-gray-500">{p.nombre_numeros.toLocaleString("fr-FR")}</td>
+                        <td className="py-2 text-right font-bold text-gray-800">{Math.round(p.total).toLocaleString("fr-FR")}</td>
+                        <td className={`py-2 text-right font-semibold ${
+                          (p.ecart ?? 0) > 0 ? "text-red-600" : (p.ecart ?? 0) < 0 ? "text-emerald-600" : "text-gray-400"
+                        }`}>
+                          {p.ecart == null ? "—" : `${p.ecart > 0 ? "+" : ""}${Math.round(p.ecart).toLocaleString("fr-FR")} F${p.ecart_pct != null ? ` (${p.ecart_pct > 0 ? "+" : ""}${p.ecart_pct.toFixed(1)}%)` : ""}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Bouton Retour ── vers Vue d'ensemble SIM */}
+          <div className="flex justify-end mb-5">
+            <button onClick={() => setTelSubSection("sims")}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <span>Retour : Vue d'ensemble SIM</span><ArrowRight size={15} />
+            </button>
+          </div>
+          </>
+          )}
         </>
       )}
 

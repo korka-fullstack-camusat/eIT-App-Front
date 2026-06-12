@@ -74,8 +74,15 @@ export interface NumeroSIM {
   statut:             StatutSIM;
   operateur:          string | null;
   description:        string | null;
+  matricule:          string | null;
+  beneficiaire:       string | null;
+  service:            string | null;
+  business_line:      string | null;
+  fonction:           string | null;
+  forfait:            number | null;
   created_at:         string;
   affectation_active: AffectationSIM | null;
+  derniere_facture:   DerniereFactureInfo | null;
 }
 
 export interface DerniereFactureInfo {
@@ -93,6 +100,7 @@ export interface SiteGSM {
   localisation: string | null;
   created_at:   string;
   sim_numero:   string | null;
+  sim_operateur: string | null;
   derniere_facture: DerniereFactureInfo | null;
 }
 
@@ -102,9 +110,14 @@ export interface Vehicule {
   marque:          string | null;
   modele:          string | null;
   imsi:            string | null;
+  imei:            string | null;
   affectation:     string | null;
   created_at:      string;
   sim_numero:      string | null;
+  sim_operateur:   string | null;
+  statut_sim:      string | null;
+  forfait:         number | null;
+  derniere_facture: DerniereFactureInfo | null;
 }
 
 export interface AffectationSIM {

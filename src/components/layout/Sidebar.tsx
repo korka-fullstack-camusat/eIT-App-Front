@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
     path: "/telephonie",
     icon: <Smartphone size={20} />,
     subItems: [
+      { label: "Import global", path: "/import-global" },
       { label: "Numéros SIM", path: "/sims"      },
       { label: "Sites RMS",   path: "/sites"     },
       { label: "Véhicules",   path: "/vehicules" },
@@ -154,7 +155,15 @@ export default function Sidebar() {
     </div>
   );
 
-  const items = user?.role === "ADMIN" ? [...navItems, adminNavItem] : navItems;
+  const baseItems = user?.role === "VIEWER"
+    ? navItems.map(item =>
+        item.subItems
+          ? { ...item, subItems: item.subItems.filter(s => s.path !== "/import-global") }
+          : item
+      )
+    : navItems;
+
+  const items = user?.role === "ADMIN" ? [...baseItems, adminNavItem] : baseItems;
 
   const SidebarContent = ({ onClose }: { onClose?: () => void }) => (
     <>
