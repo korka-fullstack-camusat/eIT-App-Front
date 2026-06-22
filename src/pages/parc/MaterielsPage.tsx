@@ -255,6 +255,10 @@ export function MaterielsContent() {
       numero_serie:     !showMac ? (form.numero_serie || null) : null,
       adresse_mac:      showMac  ? (form.adresse_mac  || null) : null,
       numero_bon_cmd:   form.numero_bon_cmd || null,
+      projet:           form.projet || null,
+      beneficiaire_matricule: form.beneficiaire_matricule || null,
+      beneficiaire_nom:       form.beneficiaire_nom       || null,
+      beneficiaire_prenom:    form.beneficiaire_prenom    || null,
       etat:             form.etat,
       date_acquisition: form.date_acquisition || null,
     };
@@ -1143,23 +1147,6 @@ export function MaterielsContent() {
                                     ${isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                                     {isActive ? "En cours" : "Clôturé"}
                                   </span>
-                                  {isActive && (
-                                    <button onClick={() => {
-                                      setRecupererAttr(a);
-                                      setRecupForm({
-                                        date_restitution: new Date().toISOString().split("T")[0],
-                                        motif_restitution: "CHANGEMENT", notes_restitution: "",
-                                        employee_id: "", employee_nom: "", employee_prenom: "",
-                                        employee_matricule: "", employee_service: "", employee_poste: "",
-                                        date_attribution: new Date().toISOString().split("T")[0],
-                                        etat_remise: "BON", notes: "",
-                                      });
-                                      setRecupEmpQuery("");
-                                    }}
-                                      className="text-xs px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-semibold rounded-full transition">
-                                      Récupérer
-                                    </button>
-                                  )}
                                 </div>
                               </div>
 
@@ -1546,28 +1533,6 @@ export function MaterielsContent() {
                   <input type="date" value={form.date_acquisition}
                     onChange={e => setForm((p: any) => ({ ...p, date_acquisition: e.target.value }))}
                     className="input-base" />
-                </div>
-              </div>
-
-              {/* Bénéficiaire */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Matricule</label>
-                  <input type="text" value={form.beneficiaire_matricule ?? ""}
-                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_matricule: e.target.value }))}
-                    placeholder="278" className="input-base" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nom</label>
-                  <input type="text" value={form.beneficiaire_nom ?? ""}
-                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_nom: e.target.value }))}
-                    placeholder="TOURE" className="input-base" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prénom</label>
-                  <input type="text" value={form.beneficiaire_prenom ?? ""}
-                    onChange={e => setForm((p: any) => ({ ...p, beneficiaire_prenom: e.target.value }))}
-                    placeholder="Awa Sall" className="input-base" />
                 </div>
               </div>
 
