@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
-  Plus, Settings2, X, Pencil, Trash2, Upload, Download,
+  Settings2, X, Pencil, Trash2, Upload, Download,
   FileText, CheckCircle2, Radio, Calendar, Smartphone,
   Search, ChevronLeft, ChevronRight, FileSpreadsheet, Filter,
   Wifi, WifiOff, BarChart3, ArrowLeftRight, TrendingUp, TrendingDown,
@@ -145,8 +145,6 @@ export default function SitesPage() {
   const [importResult,  setImportResult]  = useState<any>(null);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [createModal, setCreateModal] = useState(false);
-  const [createForm,  setCreateForm]  = useState<any>(EMPTY);
 
   // ── Chargement ───────────────────────────────────────────────────────────────
   const load = useCallback(() => {
@@ -244,14 +242,6 @@ export default function SitesPage() {
     setImportModal(false); setImportFile(null); setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  const handleCreate = async () => {
-    if (!createForm.nom.trim()) { toast.error("Le nom du site est obligatoire"); return; }
-    try {
-      await siteService.create(createForm);
-      toast.success("Site créé"); setCreateModal(false); setCreateForm(EMPTY); load();
-    } catch (e: any) { toast.error(e?.response?.data?.detail ?? "Erreur"); }
-  };
-
   const FIELDS = [
     { label: "IMSI",          key: "imsi",         placeholder: "Ex : 608030012345678" },
     { label: "SiteID",        key: "code_site",    placeholder: "Ex : SITE-001" },
@@ -302,12 +292,6 @@ export default function SitesPage() {
               className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
               <FileSpreadsheet size={15} /><span>Importer</span>
               <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv / .xlsx</span>
-            </button>
-            )}
-            {!isViewer && (
-            <button onClick={() => { setCreateForm(EMPTY); setCreateModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-              <Plus size={16} /> Ajouter site
             </button>
             )}
           </div>
@@ -822,27 +806,6 @@ export default function SitesPage() {
                   </div>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══ Modal Nouveau site ═══════════════════════════════════════════════════ */}
-      {createModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-lg text-camublue-900 mb-4">Nouveau site RMS</h2>
-            <div className="space-y-3">
-              {FIELDS.map(({ label, key, placeholder }) => (
-                <div key={key}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>
-                  <input type="text" value={createForm[key]} onChange={e => setCreateForm((p: any) => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="input-base" />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={handleCreate} className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">Créer</button>
             </div>
           </div>
         </div>

@@ -84,9 +84,7 @@ export default function FactureDetailPage() {
   }
 
   const f = facture;
-  const total = f.montant_ttc != null
-    ? parseFloat(f.montant_ttc)
-    : f.lignes.reduce((ls, l) => ls + parseFloat(l.montant || "0"), 0);
+  const total = (f.solde_facture != null && f.montant_ht != null) ? parseFloat(f.montant_ht) : 0;
   const ecart    = f.ecart != null ? parseFloat(f.ecart) : null;
   const ecartPct = f.ecart_pct ?? null;
 
@@ -256,7 +254,7 @@ export default function FactureDetailPage() {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead className="bg-camublue-900 sticky top-0 z-10">
                   <tr>
-                    {["Numéro", "Type", "Référence Facture", "Montant HT", "Rutel (5%)", "Hors TVA avec Rutel", "TVA (18%)", "Montant TTC", "Arrondi Précédent", "Arrondi En cours", "Solde Facture"].map(h => (
+                    {["Numéro", "Référence Facture", "Montant HT", "Rutel (5%)", "Hors TVA avec Rutel", "TVA (18%)", "Montant TTC", "Arrondi Précédent", "Arrondi En cours", "Solde Facture"].map(h => (
                       <th key={h} className="px-4 py-2.5 text-center text-[11px] font-semibold text-white uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -265,7 +263,6 @@ export default function FactureDetailPage() {
                   {paginatedLignes.map(l => (
                     <tr key={l.id} className="hover:bg-gray-50/70 transition">
                       <td className="px-4 py-2 text-center font-mono text-gray-700">{l.numero_raw}</td>
-                      <td className="px-4 py-2 text-center text-gray-600 text-xs">{l.type_ligne ?? "—"}</td>
                       <td className="px-4 py-2 text-center font-mono text-gray-500 text-xs">{l.reference_facture ?? "—"}</td>
                       <td className="px-4 py-2 text-center text-gray-600">{fmtN(l.montant_ht)}</td>
                       <td className="px-4 py-2 text-center text-gray-600">{fmtN(l.rutel)}</td>

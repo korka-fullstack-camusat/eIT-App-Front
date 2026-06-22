@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
-  Plus, Settings2, X, Pencil, Trash2, Upload, Download,
+  Settings2, X, Pencil, Trash2, Upload, Download,
   FileText, CheckCircle2, Car, Calendar, Smartphone,
   Search, ChevronLeft, ChevronRight, FileSpreadsheet, Filter,
   Wifi, WifiOff, BarChart3, ArrowLeftRight, TrendingUp, TrendingDown,
@@ -14,7 +14,7 @@ import type { Vehicule } from "@/types";
 const MOIS_LABELS = ["", "Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
 const PAGE_SIZE = 10;
-const EMPTY = { immatriculation: "", marque: "", modele: "", imsi: "", imei: "", affectation: "" };
+const EMPTY = { immatriculation: "", modele: "", imsi: "", imei: "", affectation: "" };
 
 // ── Carte statistique ─────────────────────────────────────────────────────────
 function StatCard({ label, value, color, onClick, active }: {
@@ -54,7 +54,6 @@ export default function VehiculesPage() {
   // ── Export ───────────────────────────────────────────────────────────────────
   const VEH_COLS = [
     { key: "immat",       label: "Immatriculation" },
-    { key: "marque",      label: "Marque" },
     { key: "modele",      label: "Modèle" },
     { key: "affectation", label: "Affectation" },
     { key: "sim_numero",  label: "Numéro SIM" },
@@ -84,8 +83,6 @@ export default function VehiculesPage() {
   const [importResult,  setImportResult]  = useState<any>(null);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [createModal, setCreateModal] = useState(false);
-  const [createForm,  setCreateForm]  = useState<any>(EMPTY);
 
   // ── Statistiques mensuelles / Écart ─────────────────────────────────────────
   const [periodes, setPeriodes] = useState<{ mois: number; annee: number }[]>([]);
@@ -172,7 +169,7 @@ export default function VehiculesPage() {
     if (!val.trim()) { setSearch(""); setSuggestions([]); setShowSuggest(false); setPage(1); return; }
     const lower = val.toLowerCase();
     const sugg = Array.from(new Set(
-      vehicules.flatMap(v => [v.immatriculation, v.marque, v.modele, v.affectation, v.sim_numero].filter(Boolean) as string[])
+      vehicules.flatMap(v => [v.immatriculation, v.modele, v.affectation, v.sim_numero].filter(Boolean) as string[])
         .filter(s => s.toLowerCase().includes(lower))
     )).slice(0, 6);
     setSuggestions(sugg); setShowSuggest(sugg.length > 0);
@@ -189,7 +186,6 @@ export default function VehiculesPage() {
     const q = search.toLowerCase();
     return (
       v.immatriculation.toLowerCase().includes(q) ||
-      (v.marque      ?? "").toLowerCase().includes(q) ||
       (v.modele      ?? "").toLowerCase().includes(q) ||
       (v.affectation ?? "").toLowerCase().includes(q) ||
       (v.sim_numero  ?? "").toLowerCase().includes(q)
@@ -204,7 +200,7 @@ export default function VehiculesPage() {
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const openGerer = (v: Vehicule) => {
     setGererVeh(v); setGererMode("menu");
-    setForm({ immatriculation: v.immatriculation, marque: v.marque ?? "", modele: v.modele ?? "", imsi: v.imsi ?? "", imei: v.imei ?? "", affectation: v.affectation ?? "" });
+    setForm({ immatriculation: v.immatriculation, modele: v.modele ?? "", imsi: v.imsi ?? "", imei: v.imei ?? "", affectation: v.affectation ?? "" });
   };
   const closeGerer = () => { setGererVeh(null); setGererMode("menu"); };
 
@@ -232,20 +228,11 @@ export default function VehiculesPage() {
     setImportModal(false); setImportFile(null); setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  const handleCreate = async () => {
-    if (!createForm.immatriculation.trim()) { toast.error("L'immatriculation est obligatoire"); return; }
-    try {
-      await vehiculeService.create(createForm);
-      toast.success("Véhicule créé"); setCreateModal(false); setCreateForm(EMPTY); load();
-    } catch (e: any) { toast.error(e?.response?.data?.detail ?? "Erreur"); }
-  };
-
   const FIELDS = [
     { label: "Immatriculation *", key: "immatriculation", placeholder: "Ex : DK 1234 AB"       },
     { label: "IMSI",              key: "imsi",            placeholder: "Ex : 60803001234567"    },
     { label: "IMEI",              key: "imei",            placeholder: "Ex : 869943053761236"   },
     { label: "Modèle",            key: "modele",          placeholder: "Ex : Land Cruiser"      },
-    { label: "Marque",            key: "marque",          placeholder: "Ex : Toyota"            },
     { label: "Affectation",       key: "affectation",     placeholder: "Ex : Direction"         },
   ];
 
@@ -277,12 +264,6 @@ export default function VehiculesPage() {
               className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
               <FileSpreadsheet size={15} /><span>Importer</span>
               <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
-            </button>
-            )}
-            {!isViewer && (
-            <button onClick={() => { setCreateForm(EMPTY); setCreateModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-              <Plus size={16} /> Ajouter véhicule
             </button>
             )}
           </div>
@@ -383,7 +364,6 @@ export default function VehiculesPage() {
                   {v.modele
                     ? <p className="text-sm text-gray-700">{v.modele}</p>
                     : <span className="text-gray-300 text-xs">—</span>}
-                  {v.marque && <p className="text-xs text-gray-400">{v.marque}</p>}
                 </td>
                 {/* Forfait */}
                 <td className="px-4 py-3 text-center text-xs text-gray-600">
@@ -545,7 +525,7 @@ export default function VehiculesPage() {
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0"><Car size={20} className="text-white" /></div>
                 <div>
                   <p className="text-white font-bold font-mono text-base">{detailVeh.immatriculation}</p>
-                  <p className="text-white/60 text-xs mt-0.5">{[detailVeh.marque, detailVeh.modele].filter(Boolean).join(" ") || "Marque non renseignée"}</p>
+                  <p className="text-white/60 text-xs mt-0.5">{detailVeh.modele || "Modèle non renseigné"}</p>
                 </div>
               </div>
               <button onClick={() => setDetailVeh(null)} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><X size={14} className="text-white" /></button>
@@ -553,7 +533,6 @@ export default function VehiculesPage() {
             <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Immatriculation</p><p className="text-base font-mono font-bold text-gray-800 mt-1">{detailVeh.immatriculation}</p></div>
-                <div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Marque</p><p className="text-sm text-gray-700 mt-1">{detailVeh.marque || <span className="text-gray-300">—</span>}</p></div>
                 <div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Modèle</p><p className="text-sm text-gray-700 mt-1">{detailVeh.modele || <span className="text-gray-300">—</span>}</p></div>
                 <div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Affectation</p><p className="text-sm text-gray-700 mt-1">{detailVeh.affectation || <span className="text-gray-300">—</span>}</p></div>
                 <div className="col-span-2 flex items-center gap-1.5 text-gray-400">
@@ -716,27 +695,6 @@ export default function VehiculesPage() {
                   </div>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══ Modal Nouveau véhicule ═══════════════════════════════════════════════ */}
-      {createModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-lg text-camublue-900 mb-4">Nouveau véhicule</h2>
-            <div className="space-y-3">
-              {FIELDS.map(({ label, key, placeholder }) => (
-                <div key={key}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>
-                  <input type="text" value={createForm[key]} onChange={e => setCreateForm((p: any) => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="input-base" />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => { setCreateModal(false); setCreateForm(EMPTY); }} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={handleCreate} className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">Créer</button>
             </div>
           </div>
         </div>

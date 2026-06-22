@@ -23,6 +23,7 @@ export interface Materiel {
   modele:             string | null;
   numero_serie:       string | null;
   adresse_mac:        string | null;
+  reference:          string | null;
   numero_bon_cmd:     string | null;
   projet:             string | null;
   beneficiaire_matricule: string | null;

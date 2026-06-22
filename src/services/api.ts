@@ -163,6 +163,8 @@ export const simService = {
   desaffecter: (id: number, motif?: string) =>
     ax.patch<AffectationSIM>(`/telephonie/sims/${id}/desaffecter`, { motif: motif || null }).then(r => r.data),
   historique:  (id: number) => ax.get<AffectationSIM[]>(`/telephonie/sims/${id}/historique`).then(r => r.data),
+  statsCounts: (params?: { categorie?: string; search?: string }) =>
+    ax.get<Record<string, number>>("/telephonie/sims/stats-counts", { params }).then(r => r.data),
   exportExcel: async (params?: { categorie?: string; statut?: string; search?: string; cols?: string }) => {
     const q = new URLSearchParams();
     if (params?.categorie) q.set("categorie", params.categorie);

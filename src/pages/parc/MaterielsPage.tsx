@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   modele:           "",
   numero_serie:     "",
   adresse_mac:      "",
+  reference:        "",
   numero_bon_cmd:   "",
   projet:           "",
   beneficiaire_matricule: "",
@@ -153,6 +154,7 @@ export function MaterielsContent() {
     { key: "modele",      label: "Modèle" },
     { key: "serie",       label: "N° Série" },
     { key: "mac",         label: "Adresse MAC" },
+    { key: "reference",   label: "Référence" },
     { key: "po",          label: "N° PO" },
     { key: "etat",        label: "État" },
     { key: "statut",      label: "Statut" },
@@ -206,7 +208,11 @@ export function MaterielsContent() {
     const lower = val.toLowerCase();
     const sugg = Array.from(new Set(
       items
-        .flatMap(m => [m.marque, m.modele, m.numero_serie].filter(Boolean) as string[])
+        .flatMap(m => [
+          m.marque, m.modele, m.numero_serie, m.reference,
+          m.beneficiaire_nom, m.beneficiaire_prenom,
+          m.attribution_active?.employee_nom, m.attribution_active?.employee_prenom,
+        ].filter(Boolean) as string[])
         .filter(s => s.toLowerCase().includes(lower))
     )).slice(0, 6);
     setSuggestions(sugg);
@@ -232,6 +238,7 @@ export function MaterielsContent() {
       modele:           m.modele           ?? "",
       numero_serie:     m.numero_serie     ?? "",
       adresse_mac:      m.adresse_mac      ?? "",
+      reference:        m.reference        ?? "",
       numero_bon_cmd:   m.numero_bon_cmd   ?? "",
       projet:           m.projet           ?? "",
       beneficiaire_matricule: m.beneficiaire_matricule ?? "",
@@ -254,6 +261,7 @@ export function MaterielsContent() {
       modele:           form.modele?.trim() || "",
       numero_serie:     !showMac ? (form.numero_serie || null) : null,
       adresse_mac:      showMac  ? (form.adresse_mac  || null) : null,
+      reference:        form.reference || null,
       numero_bon_cmd:   form.numero_bon_cmd || null,
       projet:           form.projet || null,
       beneficiaire_matricule: form.beneficiaire_matricule || null,
@@ -573,7 +581,7 @@ export function MaterielsContent() {
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
               onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
-              placeholder="Rechercher marque, modèle, n° série…"
+              placeholder="Rechercher marque, modèle, n° série, référence, employé…"
               className="input-base pl-9 pr-8"
             />
             {/* Suggestions dropdown */}
@@ -677,16 +685,16 @@ export function MaterielsContent() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
-              {["Type","Marque / Modèle","N° Série / MAC","Projet","État","Statut","Assigné à","Actions"].map(h => (
+              {["Type","Marque / Modèle","N° Série / MAC","Référence","Projet","État","Statut","Assigné à","Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
+              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
             ) : paginated.map(m => (
               <tr key={m.id} onClick={() => setDetailItem(m)}
                 className="hover:bg-gray-50/50 transition cursor-pointer">
@@ -701,6 +709,9 @@ export function MaterielsContent() {
                     : m.numero_serie
                     ? <span className="text-gray-500">{m.numero_serie}</span>
                     : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                  {m.reference || <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-600">
                   {m.projet ? <span className="px-2 py-0.5 bg-camublue-900/5 text-camublue-900 rounded-lg font-semibold">{m.projet}</span> : <span className="text-gray-300">—</span>}
@@ -856,6 +867,7 @@ export function MaterielsContent() {
                   { label: "Modèle",      value: detailItem.modele },
                   { label: "N° Série",    value: detailItem.numero_serie },
                   { label: "Adresse MAC", value: detailItem.adresse_mac },
+                  { label: "Référence",   value: detailItem.reference },
                 ].filter(r => r.value).map(row => (
                   <div key={row.label} className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">{row.label}</span>
@@ -1503,6 +1515,13 @@ export function MaterielsContent() {
                     onChange={e => setForm((p: any) => ({ ...p, numero_serie: e.target.value }))}
                     placeholder="SN-XXXXXXXX" className="input-base" />
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Référence</label>
+                <input type="text" value={form.reference}
+                  onChange={e => setForm((p: any) => ({ ...p, reference: e.target.value }))}
+                  placeholder="REF-IT-0042" className="input-base" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

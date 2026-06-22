@@ -55,6 +55,7 @@ export default function SimsPage() {
   const { isViewer } = useAuth();
   const [sims,    setSims]    = useState<NumeroSIM[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statsCounts, setStatsCounts] = useState<Record<string, number>>({});
 
   // ── Filtres ──────────────────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState("");
@@ -77,7 +78,7 @@ export default function SimsPage() {
     { key: "imsi",         label: "IMSI" },
     { key: "sim_matricule",label: "Matricule" },
     { key: "beneficiaire", label: "Bénéficiaire" },
-    { key: "service",      label: "Service" },
+    { key: "service",      label: "Projet" },
     { key: "business_line",label: "BL" },
     { key: "fonction",     label: "Fonction" },
     { key: "categorie",    label: "Catégorie" },
@@ -187,6 +188,8 @@ export default function SimsPage() {
       statut:    statutFil || undefined,
       search:    search || undefined,
     }).then(setSims).catch(() => toast.error("Erreur")).finally(() => setLoading(false));
+    simService.statsCounts({ categorie: cat || undefined, search: search || undefined })
+      .then(setStatsCounts).catch(() => {});
   }, [cat, statutFil, search]);
 
   useEffect(() => { load(); setPage(1); }, [cat, statutFil, search]);
@@ -219,7 +222,10 @@ export default function SimsPage() {
     if (!val.trim()) { setSearch(""); setSuggestions([]); setShowSuggest(false); return; }
     const lower = val.toLowerCase();
     const sugg = Array.from(new Set(
-      sims.flatMap(s => [s.numero, s.operateur, s.description].filter(Boolean) as string[])
+      sims.flatMap(s => [
+        s.numero, s.operateur, s.description, s.beneficiaire, s.matricule,
+        s.affectation_active?.employee_nom, s.affectation_active?.employee_matricule,
+      ].filter(Boolean) as string[])
         .filter(s => s.toLowerCase().includes(lower))
     )).slice(0, 6);
     setSuggestions(sugg); setShowSuggest(sugg.length > 0);
@@ -227,8 +233,7 @@ export default function SimsPage() {
   };
 
   // ── Dérivations ──────────────────────────────────────────────────────────────
-  const statsMap: Record<string, number> = {};
-  sims.forEach(s => { statsMap[s.statut] = (statsMap[s.statut] || 0) + 1; });
+  const statsMap = statsCounts;
 
   const totalPages = Math.max(1, Math.ceil(sims.length / PAGE_SIZE));
   const paginated  = sims.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -329,7 +334,7 @@ export default function SimsPage() {
 
         {/* ── Statistiques ── */}
         <div className="flex gap-3 flex-wrap">
-          <StatCard label="Total" value={sims.length} color="bg-camublue-900"
+          <StatCard label="Total" value={statsMap["total"] ?? 0} color="bg-camublue-900"
             onClick={() => { setStatutFil(""); setSearchInput(""); setSearch(""); }}
             active={!statutFil && !search} />
           <StatCard label="Actives" value={statsMap["ACTIVE"] ?? 0} color="bg-emerald-500"
@@ -359,7 +364,7 @@ export default function SimsPage() {
                 value={searchInput}
                 onChange={e => handleSearchInput(e.target.value)}
                 onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
-                placeholder="Rechercher un numéro, opérateur…"
+                placeholder="Rechercher un numéro, opérateur, bénéficiaire…"
                 className="input-base pl-9 pr-8"
               />
               {showSuggest && suggestions.length > 0 && (
@@ -399,7 +404,7 @@ export default function SimsPage() {
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Numéro</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Matricule</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Bénéficiaire</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Service</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Projet</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">BL</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Fonction</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Statut</th>
@@ -417,8 +422,8 @@ export default function SimsPage() {
                 <td className="px-4 py-3">
                   <p className="font-mono font-semibold text-gray-800">{s.numero}</p>
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs font-mono">{s.matricule || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-700 text-xs">{s.beneficiaire || <span className="text-gray-300">—</span>}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs font-mono">{s.affectation_active?.employee_matricule || s.matricule || <span className="text-gray-300">—</span>}</td>
+                <td className="px-4 py-3 text-gray-700 text-xs">{s.affectation_active?.employee_nom || s.beneficiaire || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{s.service || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{s.business_line || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{s.fonction || <span className="text-gray-300">—</span>}</td>
@@ -587,7 +592,7 @@ export default function SimsPage() {
                 </div>
                 {detailSim.matricule && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Matricule</p><p className="text-sm font-mono text-gray-700 mt-1">{detailSim.matricule}</p></div>)}
                 {detailSim.beneficiaire && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Bénéficiaire</p><p className="text-sm text-gray-700 mt-1">{detailSim.beneficiaire}</p></div>)}
-                {detailSim.service && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Service</p><p className="text-sm text-gray-700 mt-1">{detailSim.service}</p></div>)}
+                {detailSim.service && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Projet</p><p className="text-sm text-gray-700 mt-1">{detailSim.service}</p></div>)}
                 {detailSim.business_line && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">BL</p><p className="text-sm text-gray-700 mt-1">{detailSim.business_line}</p></div>)}
                 {detailSim.fonction && (<div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Fonction</p><p className="text-sm text-gray-700 mt-1">{detailSim.fonction}</p></div>)}
                 {detailSim.description && (<div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Description</p><p className="text-sm text-gray-700 mt-1">{detailSim.description}</p></div>)}
@@ -753,7 +758,7 @@ export default function SimsPage() {
                       opts: Object.entries(STATUT_LABELS) },
                     { label: "Matricule", key: "matricule", type: "text" },
                     { label: "Bénéficiaire", key: "beneficiaire", type: "text" },
-                    { label: "Service", key: "service", type: "text" },
+                    { label: "Projet", key: "service", type: "text" },
                     { label: "BL", key: "business_line", type: "text" },
                     { label: "Fonction", key: "fonction", type: "text" },
                     { label: "Description", key: "description", type: "text" },
