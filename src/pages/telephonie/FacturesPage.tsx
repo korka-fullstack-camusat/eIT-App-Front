@@ -125,140 +125,142 @@ export default function FacturesPage() {
   return (
     <AppLayout>
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-camublue-900">Factures télécom</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {factures.length} facture(s)
-            {factures.length > 0 && <> · Total <span className="font-semibold">{totalMontant.toLocaleString("fr-FR")} FCFA</span></>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select value={filterAnnee} onChange={e => setFilterAnnee(Number(e.target.value))}
-            className="input-base w-auto px-3 py-2">
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button
-            disabled={exportLoading || factures.length === 0}
-            onClick={async () => {
-              setExportLoading(true);
-              try {
-                await factureService.exportExcel({ annee: filterAnnee });
-                toast.success("Fichier Excel généré");
-              } catch { toast.error("Erreur lors de l'export"); }
-              finally { setExportLoading(false); }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-40 rounded-xl text-sm font-semibold transition shadow-sm">
-            {exportLoading
-              ? <span className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-700 rounded-full animate-spin" />
-              : <FileSpreadsheet size={15} />}
-            <span>Exporter</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
-          </button>
-          {!isViewer && (
-          <button onClick={openImportModal}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-            <Upload size={15} /> Importer facture
-          </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Statistiques globales ── */}
-      {!loading && factures.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
-              <Receipt size={18} className="text-camublue-900" />
-            </div>
-            <div>
-              <p className="font-bold text-gray-800 text-lg">{nbFactures}</p>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Factures</p>
-            </div>
+      {/* ── Header + Stats (fixe au scroll) ── */}
+      <div className="sticky top-0 z-20 bg-camugray-100 pt-1 pb-4 -mt-1">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-camublue-900">Factures télécom</h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              {factures.length} facture(s)
+              {factures.length > 0 && <> · Total <span className="font-semibold">{totalMontant.toLocaleString("fr-FR")} FCFA</span></>}
+            </p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
-              <Wallet size={18} className="text-camublue-900" />
-            </div>
-            <div>
-              <p className="font-bold text-gray-800 text-lg">{totalMontant.toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Total {filterAnnee}</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
-              <BarChart3 size={18} className="text-camublue-900" />
-            </div>
-            <div>
-              <p className="font-bold text-gray-800 text-lg">{Math.round(moyenneMontant).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Moyenne / facture</p>
-            </div>
-          </div>
-          {maxFacture && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-                <TrendingUp size={18} className="text-red-500" />
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 text-lg">{factureTotal(maxFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus élevée — {MOIS_LABELS[maxFacture.mois]}</p>
-              </div>
-            </div>
-          )}
-          {minFacture && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-                <TrendingDown size={18} className="text-emerald-500" />
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 text-lg">{factureTotal(minFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus basse — {MOIS_LABELS[minFacture.mois]}</p>
-              </div>
-            </div>
-          )}
-          {dernierEcartVal != null && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                dernierEcartVal > 0 ? "bg-red-50" : dernierEcartVal < 0 ? "bg-emerald-50" : "bg-gray-100"
-              }`}>
-                {dernierEcartVal > 0
-                  ? <TrendingUp size={18} className="text-red-500" />
-                  : dernierEcartVal < 0
-                    ? <TrendingDown size={18} className="text-emerald-500" />
-                    : <BarChart3 size={18} className="text-gray-400" />}
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 text-lg">
-                  {dernierEcartVal > 0 ? "+" : ""}{Math.round(dernierEcartVal).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span>
-                </p>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Dernier écart (vs N-1)</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Recherche ── */}
-      {!loading && factures.length > 0 && (
-        <div className="flex justify-center mb-4">
-          <div className="relative w-full sm:w-[32rem]">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            {factureSearch && (
-              <button onClick={() => { setFactureSearch(""); setPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
-                <X size={14} />
-              </button>
+          <div className="flex items-center gap-2">
+            <select value={filterAnnee} onChange={e => setFilterAnnee(Number(e.target.value))}
+              className="input-base w-auto px-3 py-2">
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button
+              disabled={exportLoading || factures.length === 0}
+              onClick={async () => {
+                setExportLoading(true);
+                try {
+                  await factureService.exportExcel({ annee: filterAnnee });
+                  toast.success("Fichier Excel généré");
+                } catch { toast.error("Erreur lors de l'export"); }
+                finally { setExportLoading(false); }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-40 rounded-xl text-sm font-semibold transition shadow-sm">
+              {exportLoading
+                ? <span className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-700 rounded-full animate-spin" />
+                : <FileSpreadsheet size={15} />}
+              <span>Exporter</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            </button>
+            {!isViewer && (
+            <button onClick={openImportModal}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <Upload size={15} /> Importer facture
+            </button>
             )}
-            <input
-              value={factureSearch}
-              onChange={e => { setFactureSearch(e.target.value); setPage(1); }}
-              placeholder="Rechercher une facture (mois, opérateur, fichier, référence…)"
-              className="input-base pl-10 pr-9 py-3 text-sm"
-            />
           </div>
         </div>
-      )}
+
+        {/* ── Statistiques globales ── */}
+        {!loading && factures.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+                <Receipt size={18} className="text-camublue-900" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-800 text-lg">{nbFactures}</p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Factures</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+                <Wallet size={18} className="text-camublue-900" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-800 text-lg">{totalMontant.toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Total {filterAnnee}</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
+                <BarChart3 size={18} className="text-camublue-900" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-800 text-lg">{Math.round(moyenneMontant).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Moyenne / facture</p>
+              </div>
+            </div>
+            {maxFacture && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+                <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                  <TrendingUp size={18} className="text-red-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800 text-lg">{factureTotal(maxFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus élevée — {MOIS_LABELS[maxFacture.mois]}</p>
+                </div>
+              </div>
+            )}
+            {minFacture && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                  <TrendingDown size={18} className="text-emerald-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800 text-lg">{factureTotal(minFacture).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span></p>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Plus basse — {MOIS_LABELS[minFacture.mois]}</p>
+                </div>
+              </div>
+            )}
+            {dernierEcartVal != null && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                  dernierEcartVal > 0 ? "bg-red-50" : dernierEcartVal < 0 ? "bg-emerald-50" : "bg-gray-100"
+                }`}>
+                  {dernierEcartVal > 0
+                    ? <TrendingUp size={18} className="text-red-500" />
+                    : dernierEcartVal < 0
+                      ? <TrendingDown size={18} className="text-emerald-500" />
+                      : <BarChart3 size={18} className="text-gray-400" />}
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800 text-lg">
+                    {dernierEcartVal > 0 ? "+" : ""}{Math.round(dernierEcartVal).toLocaleString("fr-FR")} <span className="text-lg">FCFA</span>
+                  </p>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Dernier écart (vs N-1)</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Recherche ── */}
+        {!loading && factures.length > 0 && (
+          <div className="flex justify-center mt-5">
+            <div className="relative w-full sm:w-[32rem]">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              {factureSearch && (
+                <button onClick={() => { setFactureSearch(""); setPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                  <X size={14} />
+                </button>
+              )}
+              <input
+                value={factureSearch}
+                onChange={e => { setFactureSearch(e.target.value); setPage(1); }}
+                placeholder="Rechercher une facture (mois, opérateur, fichier, référence…)"
+                className="input-base pl-10 pr-9 py-3 text-sm"
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Liste factures ── */}
       {loading ? (
@@ -280,7 +282,7 @@ export default function FacturesPage() {
           <p className="text-gray-400 text-sm mt-1">Essayez un autre mois, opérateur ou nom de fichier</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1">
           {paginated.map(f => {
             const total  = factureTotal(f);
             const ecart    = f.ecart != null ? parseFloat(f.ecart) : null;

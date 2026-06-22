@@ -261,131 +261,134 @@ export default function SitesPage() {
 
   return (
     <AppLayout>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-camublue-900">Sites RMS</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{loading ? "Chargement…" : `${sites.length} site(s)`}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filtre RMS Orange / Free */}
-          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
-            <button onClick={() => setFilterRMS("Orange")}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${
-                filterRMS === "Orange" ? "bg-white text-camublue-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}>
-              RMS_Orange
-            </button>
-            <button onClick={() => setFilterRMS("Free")}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${
-                filterRMS === "Free" ? "bg-white text-camublue-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}>
-              RMS_Free
-            </button>
+      {/* ── Header + Stats (fixe au scroll) ── */}
+      <div className="sticky top-0 z-20 bg-camugray-100 pt-1 pb-4 -mt-1">
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-camublue-900">Sites RMS</h1>
+            <p className="text-gray-500 text-sm mt-0.5">{loading ? "Chargement…" : `${sites.length} site(s)`}</p>
           </div>
-          <button onClick={() => { setStatsResult(null); setStatsModal(true); }} disabled={periodes.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
-            <BarChart3 size={15} /><span>Statistiques</span>
-          </button>
-          <button onClick={() => { setEcartResult(null); setEcartModal(true); }} disabled={periodes.length < 2}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
-            <ArrowLeftRight size={15} /><span>Écart</span>
-          </button>
-          <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={15} /><span>Exporter</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
-          </button>
-          {!isViewer && (
-          <button onClick={() => { setImportResult(null); setImportFile(null); setImportModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={15} /><span>Importer</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv / .xlsx</span>
-          </button>
-          )}
-          {!isViewer && (
-          <button onClick={() => { setCreateForm(EMPTY); setCreateModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-            <Plus size={16} /> Ajouter site
-          </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Statistiques ── */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <StatCard label="Total" value={sitesRMS.length} color="bg-camublue-900"
-          onClick={() => { setFilterSim(""); setSearchInput(""); setSearch(""); }}
-          active={!filterSim && !search} />
-        <StatCard label="Avec SIM" value={avecSim} color="bg-emerald-500"
-          onClick={() => setFilterSim(filterSim === "affecte" ? "" : "affecte")}
-          active={filterSim === "affecte"} />
-        <StatCard label="Sans SIM" value={sansSim} color="bg-amber-500"
-          onClick={() => setFilterSim(filterSim === "non_affecte" ? "" : "non_affecte")}
-          active={filterSim === "non_affecte"} />
-      </div>
-
-      {/* ── Filtres ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mb-4">
-        <div className="flex gap-3 flex-wrap items-center">
-
-          {/* Recherche avec suggestions */}
-          <div ref={searchRef} className="relative flex-1 min-w-52">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            {loading && searchInput ? (
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />
-            ) : searchInput ? (
-              <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); setPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
-                <X size={14} />
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Filtre RMS Orange / Free */}
+            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+              <button onClick={() => setFilterRMS("Orange")}
+                className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${
+                  filterRMS === "Orange" ? "bg-white text-camublue-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}>
+                RMS_Orange
               </button>
-            ) : null}
-            <input value={searchInput} onChange={e => handleSearchInput(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
-              placeholder="Rechercher par nom, SiteID, IMSI, numéro SIM…"
-              className="input-base pl-9 pr-8" />
-            {showSuggest && suggestions.length > 0 && (
-              <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                {suggestions.map((s, i) => (
-                  <button key={i} type="button"
-                    onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); setPage(1); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
-                    <Search size={12} className="text-gray-300 shrink-0" />
-                    <span className="truncate">{s}</span>
-                  </button>
-                ))}
-              </div>
+              <button onClick={() => setFilterRMS("Free")}
+                className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${
+                  filterRMS === "Free" ? "bg-white text-camublue-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}>
+                RMS_Free
+              </button>
+            </div>
+            <button onClick={() => { setStatsResult(null); setStatsModal(true); }} disabled={periodes.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+              <BarChart3 size={15} /><span>Statistiques</span>
+            </button>
+            <button onClick={() => { setEcartResult(null); setEcartModal(true); }} disabled={periodes.length < 2}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900/5 hover:bg-camublue-900/10 disabled:opacity-40 disabled:cursor-not-allowed text-camublue-900 border border-camublue-900/15 rounded-xl text-sm font-semibold transition shadow-sm">
+              <ArrowLeftRight size={15} /><span>Écart</span>
+            </button>
+            <button onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileSpreadsheet size={15} /><span>Exporter</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            </button>
+            {!isViewer && (
+            <button onClick={() => { setImportResult(null); setImportFile(null); setImportModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileSpreadsheet size={15} /><span>Importer</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv / .xlsx</span>
+            </button>
+            )}
+            {!isViewer && (
+            <button onClick={() => { setCreateForm(EMPTY); setCreateModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <Plus size={16} /> Ajouter site
+            </button>
             )}
           </div>
+        </div>
 
-          {/* Séparateur */}
-          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+        {/* ── Statistiques ── */}
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Total" value={sitesRMS.length} color="bg-camublue-900"
+            onClick={() => { setFilterSim(""); setSearchInput(""); setSearch(""); }}
+            active={!filterSim && !search} />
+          <StatCard label="Avec SIM" value={avecSim} color="bg-emerald-500"
+            onClick={() => setFilterSim(filterSim === "affecte" ? "" : "affecte")}
+            active={filterSim === "affecte"} />
+          <StatCard label="Sans SIM" value={sansSim} color="bg-amber-500"
+            onClick={() => setFilterSim(filterSim === "non_affecte" ? "" : "non_affecte")}
+            active={filterSim === "non_affecte"} />
+        </div>
 
-          {/* Filtre SIM */}
-          <div className="flex items-center gap-1.5 min-w-[160px]">
-            <Filter size={13} className="text-gray-400 shrink-0" />
-            <select value={filterSim} onChange={e => setFilterSim(e.target.value)}
-              className="input-base py-2 flex-1 text-sm">
-              <option value="">Tous les sites</option>
-              <option value="affecte">Avec SIM affecté</option>
-              <option value="non_affecte">Sans SIM affecté</option>
-            </select>
+        {/* ── Filtres ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mt-5">
+          <div className="flex gap-3 flex-wrap items-center">
+
+            {/* Recherche avec suggestions */}
+            <div ref={searchRef} className="relative flex-1 min-w-52">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              {loading && searchInput ? (
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />
+              ) : searchInput ? (
+                <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); setPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                  <X size={14} />
+                </button>
+              ) : null}
+              <input value={searchInput} onChange={e => handleSearchInput(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
+                placeholder="Rechercher par nom, SiteID, IMSI, numéro SIM…"
+                className="input-base pl-9 pr-8" />
+              {showSuggest && suggestions.length > 0 && (
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  {suggestions.map((s, i) => (
+                    <button key={i} type="button"
+                      onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); setPage(1); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
+                      <Search size={12} className="text-gray-300 shrink-0" />
+                      <span className="truncate">{s}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Séparateur */}
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+
+            {/* Filtre SIM */}
+            <div className="flex items-center gap-1.5 min-w-[160px]">
+              <Filter size={13} className="text-gray-400 shrink-0" />
+              <select value={filterSim} onChange={e => setFilterSim(e.target.value)}
+                className="input-base py-2 flex-1 text-sm">
+                <option value="">Tous les sites</option>
+                <option value="affecte">Avec SIM affecté</option>
+                <option value="non_affecte">Sans SIM affecté</option>
+              </select>
+            </div>
+
           </div>
-
         </div>
       </div>
 
       {/* ── Tableau ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card">
+        <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">IMSI</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SiteID</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nom du site</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Numéro SIM</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Dernière facture</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">IMSI</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">SiteID</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Nom du site</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Numéro SIM</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Dernière facture</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24 bg-gray-50">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -433,6 +436,7 @@ export default function SitesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ── Pagination ── */}

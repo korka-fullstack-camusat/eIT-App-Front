@@ -131,8 +131,8 @@ export default function FactureDetailPage() {
 
   return (
     <AppLayout>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      {/* ── Header (fixe au scroll) ── */}
+      <div className="sticky top-0 z-20 bg-camugray-100 pt-1 pb-1 -mt-1 flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <button onClick={() => navigate("/factures")}
             className="flex items-center gap-2 text-sm text-camublue-900 font-semibold mb-2 hover:underline">

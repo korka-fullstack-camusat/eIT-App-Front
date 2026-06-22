@@ -502,59 +502,60 @@ export function MaterielsContent() {
 
   return (
     <>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-camublue-900">Gestion des matériels</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {loading ? "Chargement…" : `${items.length} équipement(s)`}
-          </p>
+      {/* ── Header + Stats (fixe au scroll) ── */}
+      <div className="sticky top-0 z-20 bg-camugray-100 pt-1 pb-4 -mt-1">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-camublue-900">Gestion des matériels</h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              {loading ? "Chargement…" : `${items.length} équipement(s)`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileSpreadsheet size={15} />
+              <span>Exporter</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            </button>
+            {!isViewer && (
+            <button onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileSpreadsheet size={15} />
+              <span>Importer</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
+            </button>
+            )}
+            {!isViewer && (
+            <button onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <Plus size={16} /> Ajouter Matériel
+            </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={15} />
-            <span>Exporter</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
-          </button>
-          {!isViewer && (
-          <button onClick={() => setImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={15} />
-            <span>Importer</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
-          </button>
-          )}
-          {!isViewer && (
-          <button onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-            <Plus size={16} /> Ajouter Matériel
-          </button>
-          )}
+
+        {/* ── Cartes statistiques ── */}
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Total" value={stats.total ?? "—"} color="bg-camublue-900"
+            onClick={() => { setStatut(""); setTypeFilter(""); setEtatFilter(""); setProjetFilter(""); setAssigneFilter(""); setSearchInput(""); setSearch(""); }}
+            active={!statut && !typeFilter && !etatFilter && !projetFilter && !assigneFilter && !search} />
+          <StatCard label="Disponibles" value={stats.disponible ?? "—"} color="bg-emerald-500"
+            onClick={() => setStatut(statut === "DISPONIBLE" ? "" : "DISPONIBLE")}
+            active={statut === "DISPONIBLE"} />
+          <StatCard label="Attribués" value={stats.attribue ?? "—"} color="bg-blue-500"
+            onClick={() => setStatut(statut === "ATTRIBUE" ? "" : "ATTRIBUE")}
+            active={statut === "ATTRIBUE"} />
+          <StatCard label="Pannes" value={stats.en_panne ?? "—"} color="bg-orange-500"
+            onClick={() => setStatut(statut === "EN_PANNE" ? "" : "EN_PANNE")}
+            active={statut === "EN_PANNE"} />
+          <StatCard label="Maintenance" value={stats.maintenance ?? "—"} color="bg-amber-500"
+            onClick={() => setStatut(statut === "MAINTENANCE" ? "" : "MAINTENANCE")}
+            active={statut === "MAINTENANCE"} />
         </div>
-      </div>
 
-      {/* ── Cartes statistiques ── */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <StatCard label="Total" value={stats.total ?? "—"} color="bg-camublue-900"
-          onClick={() => { setStatut(""); setTypeFilter(""); setEtatFilter(""); setProjetFilter(""); setAssigneFilter(""); setSearchInput(""); setSearch(""); }}
-          active={!statut && !typeFilter && !etatFilter && !projetFilter && !assigneFilter && !search} />
-        <StatCard label="Disponibles" value={stats.disponible ?? "—"} color="bg-emerald-500"
-          onClick={() => setStatut(statut === "DISPONIBLE" ? "" : "DISPONIBLE")}
-          active={statut === "DISPONIBLE"} />
-        <StatCard label="Attribués" value={stats.attribue ?? "—"} color="bg-blue-500"
-          onClick={() => setStatut(statut === "ATTRIBUE" ? "" : "ATTRIBUE")}
-          active={statut === "ATTRIBUE"} />
-        <StatCard label="Pannes" value={stats.en_panne ?? "—"} color="bg-orange-500"
-          onClick={() => setStatut(statut === "EN_PANNE" ? "" : "EN_PANNE")}
-          active={statut === "EN_PANNE"} />
-        <StatCard label="Maintenance" value={stats.maintenance ?? "—"} color="bg-amber-500"
-          onClick={() => setStatut(statut === "MAINTENANCE" ? "" : "MAINTENANCE")}
-          active={statut === "MAINTENANCE"} />
-      </div>
-
-      {/* ── Filtres avancés ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mb-4">
+        {/* ── Filtres avancés ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mt-5">
         <div className="flex gap-3 flex-wrap items-center">
 
           {/* Barre de recherche avec suggestions */}
@@ -667,15 +668,17 @@ export function MaterielsContent() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Tableau */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card">
+        <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
               {["Type","Marque / Modèle","N° Série / MAC","Projet","État","Statut","Assigné à","Actions"].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">{h}</th>
               ))}
             </tr>
           </thead>
@@ -745,6 +748,7 @@ export function MaterielsContent() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ── Pagination ── */}

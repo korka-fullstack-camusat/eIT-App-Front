@@ -415,50 +415,113 @@ export function AttributionsContent() {
 
   return (
     <>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-camublue-900">Attributions</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {loading ? "Chargement…" : `${grouped.length} employé(s)`}
-          </p>
+      {/* ── Header + Stats (fixe au scroll) ── */}
+      <div className="sticky top-0 z-20 bg-camugray-100 pt-1 pb-4 -mt-1">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-camublue-900">Attributions</h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              {loading ? "Chargement…" : `${grouped.length} employé(s)`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isViewer && (
+            <button onClick={() => setModeleOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <LayoutTemplate size={15} /> Modèle
+            </button>
+            )}
+            <button onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileSpreadsheet size={15} />
+              <span>Exporter</span>
+              <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
+            </button>
+            {!isViewer && (
+            <button onClick={openAttribution}
+              className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
+              <Plus size={16} /> Nouvelle attribution
+            </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {!isViewer && (
-          <button onClick={() => setModeleOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-            <LayoutTemplate size={15} /> Modèle
-          </button>
-          )}
-          <button onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={15} />
-            <span>Exporter</span>
-            <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.xlsx</span>
-          </button>
-          {!isViewer && (
-          <button onClick={openAttribution}
-            className="flex items-center gap-2 px-4 py-2 bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl text-sm font-semibold transition shadow-sm">
-            <Plus size={16} /> Nouvelle attribution
-          </button>
-          )}
-        </div>
-      </div>
 
-      {/* ── Cartes statistiques ── */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <StatCard label="Total" value={items.length} color="bg-camublue-900"
-          onClick={() => { setFiltre(""); setServiceFilter(""); setSearchInput(""); setSearch(""); }}
-          active={!filtre && !serviceFilter && !search} />
-        <StatCard label="Actives" value={activeCount} color="bg-emerald-500"
-          onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
-          active={filtre === "ACTIVE"} />
-        <StatCard label="Clôturées" value={closedCount} color="bg-gray-500"
-          onClick={() => setFiltre(filtre === "CLOTUREE" ? "" : "CLOTUREE")}
-          active={filtre === "CLOTUREE"} />
-        <StatCard label="Employés actifs" value={employesActifs} color="bg-blue-500"
-          onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
-          active={false} />
+        {/* ── Cartes statistiques ── */}
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Total" value={items.length} color="bg-camublue-900"
+            onClick={() => { setFiltre(""); setServiceFilter(""); setSearchInput(""); setSearch(""); }}
+            active={!filtre && !serviceFilter && !search} />
+          <StatCard label="Actives" value={activeCount} color="bg-emerald-500"
+            onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
+            active={filtre === "ACTIVE"} />
+          <StatCard label="Clôturées" value={closedCount} color="bg-gray-500"
+            onClick={() => setFiltre(filtre === "CLOTUREE" ? "" : "CLOTUREE")}
+            active={filtre === "CLOTUREE"} />
+          <StatCard label="Employés actifs" value={employesActifs} color="bg-blue-500"
+            onClick={() => setFiltre(filtre === "ACTIVE" ? "" : "ACTIVE")}
+            active={false} />
+        </div>
+
+        {/* ── Filtres ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mt-5">
+          <div className="flex gap-3 flex-wrap items-center">
+
+            {/* Recherche avec suggestions */}
+            <div ref={searchRef} className="relative flex-1 min-w-52">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              {searchInput ? (
+                <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                  <X size={14} />
+                </button>
+              ) : null}
+              <input value={searchInput} onChange={e => handleSearchInput(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
+                placeholder="Rechercher employé, service, matériel…"
+                className="input-base pl-9 pr-8" />
+              {showSuggest && suggestions.length > 0 && (
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  {suggestions.map((s, i) => (
+                    <button key={i} type="button"
+                      onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
+                      <Search size={12} className="text-gray-300 shrink-0" />
+                      <span className="truncate">{s}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+
+            {/* Filtre Statut */}
+            <div className="flex gap-1.5">
+              {(["", "ACTIVE", "CLOTUREE"] as const).map(v => (
+                <button key={v} onClick={() => setFiltre(v)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
+                    filtre === v
+                      ? "bg-camublue-900 text-white border-camublue-900"
+                      : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                  }`}>
+                  {v === "" ? "Toutes" : v === "ACTIVE" ? "Actives" : "Clôturées"}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtre Service */}
+            {services.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Filter size={13} className="text-gray-400 shrink-0" />
+                <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
+                  className="input-base py-2 text-sm">
+                  <option value="">Tous les services</option>
+                  {services.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Bannière attestation post-création ── */}
@@ -478,78 +541,18 @@ export function AttributionsContent() {
         </div>
       )}
 
-      {/* ── Filtres ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 mb-4">
-        <div className="flex gap-3 flex-wrap items-center">
-
-          {/* Recherche avec suggestions */}
-          <div ref={searchRef} className="relative flex-1 min-w-52">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            {searchInput ? (
-              <button onClick={() => { setSearchInput(""); setSearch(""); setSuggestions([]); setShowSuggest(false); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
-                <X size={14} />
-              </button>
-            ) : null}
-            <input value={searchInput} onChange={e => handleSearchInput(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
-              placeholder="Rechercher employé, service, matériel…"
-              className="input-base pl-9 pr-8" />
-            {showSuggest && suggestions.length > 0 && (
-              <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                {suggestions.map((s, i) => (
-                  <button key={i} type="button"
-                    onMouseDown={() => { setSearchInput(s); setSearch(s); setShowSuggest(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-camublue-900/5 text-left text-sm text-gray-700 border-b border-gray-50 last:border-0 transition">
-                    <Search size={12} className="text-gray-300 shrink-0" />
-                    <span className="truncate">{s}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-
-          {/* Filtre Statut */}
-          <div className="flex gap-1.5">
-            {(["", "ACTIVE", "CLOTUREE"] as const).map(v => (
-              <button key={v} onClick={() => setFiltre(v)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
-                  filtre === v
-                    ? "bg-camublue-900 text-white border-camublue-900"
-                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
-                }`}>
-                {v === "" ? "Toutes" : v === "ACTIVE" ? "Actives" : "Clôturées"}
-              </button>
-            ))}
-          </div>
-
-          {/* Filtre Service */}
-          {services.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <Filter size={13} className="text-gray-400 shrink-0" />
-              <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
-                className="input-base py-2 text-sm">
-                <option value="">Tous les services</option>
-                {services.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* ── Tableau groupé par employé ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card">
+        <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
         <table className="w-full text-sm table-fixed">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[22%]">Employé</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[13%]">Service</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[30%]">Matériels</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[15%]">Depuis le</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[10%]">Statut</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[10%]">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[22%] bg-gray-50">Employé</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[13%] bg-gray-50">Service</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[30%] bg-gray-50">Matériels</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[15%] bg-gray-50">Depuis le</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[10%] bg-gray-50">Statut</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-[10%] bg-gray-50">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -623,6 +626,7 @@ export function AttributionsContent() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ── Pagination ── */}
