@@ -10,6 +10,7 @@ import {
   Users,
   LogOut,
   User,
+  Upload,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,14 +24,14 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Tableau de bord", path: "/dashboard", icon: <LayoutDashboard size={20} /> },
-  { label: "Parc Informatique", path: "/parc", icon: <Monitor size={20} /> },
+  { label: "Tableau de bord",  path: "/dashboard",    icon: <LayoutDashboard size={20} /> },
+  { label: "Import global",    path: "/import-global", icon: <Upload size={20} /> },
+  { label: "Parc Informatique", path: "/parc",         icon: <Monitor size={20} /> },
   {
     label: "Téléphonie",
     path: "/telephonie",
     icon: <Smartphone size={20} />,
     subItems: [
-      { label: "Import global", path: "/import-global" },
       { label: "Numéros SIM", path: "/sims"      },
       { label: "Sites RMS",   path: "/sites"     },
       { label: "Véhicules",   path: "/vehicules" },
@@ -156,11 +157,7 @@ export default function Sidebar() {
   );
 
   const baseItems = user?.role === "VIEWER"
-    ? navItems.map(item =>
-        item.subItems
-          ? { ...item, subItems: item.subItems.filter(s => s.path !== "/import-global") }
-          : item
-      )
+    ? navItems.filter(item => item.path !== "/import-global")
     : navItems;
 
   const items = user?.role === "ADMIN" ? [...baseItems, adminNavItem] : baseItems;

@@ -80,7 +80,6 @@ export default function SimsPage() {
     { key: "beneficiaire", label: "Bénéficiaire" },
     { key: "service",      label: "Projet" },
     { key: "business_line",label: "BL" },
-    { key: "fonction",     label: "Fonction" },
     { key: "categorie",    label: "Catégorie" },
     { key: "operateur",    label: "Opérateur" },
     { key: "statut",       label: "Statut" },
@@ -402,11 +401,7 @@ export default function SimsPage() {
           <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Numéro</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Matricule</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Bénéficiaire</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Projet</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">BL</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Fonction</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Statut</th>
               <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">Dernière facture</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24 bg-gray-50">Actions</th>
@@ -414,19 +409,15 @@ export default function SimsPage() {
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : sims.length === 0 ? (
-              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Aucun numéro SIM</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-gray-400">Aucun numéro SIM</td></tr>
             ) : paginated.map(s => (
               <tr key={s.id} className="hover:bg-gray-50/50 transition cursor-pointer" onClick={() => setDetailSim(s)}>
                 <td className="px-4 py-3">
                   <p className="font-mono font-semibold text-gray-800">{s.numero}</p>
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs font-mono">{s.affectation_active?.employee_matricule || s.matricule || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3 text-gray-700 text-xs">{s.affectation_active?.employee_nom || s.beneficiaire || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{s.service || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{s.business_line || <span className="text-gray-300">—</span>}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{s.fonction || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUT_COLORS[s.statut] ?? "bg-gray-100 text-gray-500"}`}>
                     {STATUT_LABELS[s.statut] ?? s.statut}
@@ -592,10 +583,8 @@ export default function SimsPage() {
                 </div>
                 {detailSim.matricule && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Matricule</p><p className="text-sm font-mono text-gray-700 mt-1">{detailSim.matricule}</p></div>)}
                 {detailSim.beneficiaire && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Bénéficiaire</p><p className="text-sm text-gray-700 mt-1">{detailSim.beneficiaire}</p></div>)}
-                {detailSim.service && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Projet</p><p className="text-sm text-gray-700 mt-1">{detailSim.service}</p></div>)}
-                {detailSim.business_line && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">BL</p><p className="text-sm text-gray-700 mt-1">{detailSim.business_line}</p></div>)}
-                {detailSim.fonction && (<div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Fonction</p><p className="text-sm text-gray-700 mt-1">{detailSim.fonction}</p></div>)}
-                {detailSim.description && (<div className="col-span-2"><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Description</p><p className="text-sm text-gray-700 mt-1">{detailSim.description}</p></div>)}
+                {detailSim.affectation_active && detailSim.service && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Projet</p><p className="text-sm text-gray-700 mt-1">{detailSim.service}</p></div>)}
+                {detailSim.affectation_active && detailSim.business_line && (<div><p className="text-xs text-gray-400 font-medium uppercase tracking-wide">BL</p><p className="text-sm text-gray-700 mt-1">{detailSim.business_line}</p></div>)}
                 <div className="col-span-2 flex items-center gap-1.5 text-gray-400">
                   <Calendar size={12} />
                   <p className="text-xs">Créé le {new Date(detailSim.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}</p>
@@ -671,8 +660,7 @@ export default function SimsPage() {
                     );
                   })()}
                   <button onClick={() => {
-                    setForm({ numero: gererSim.numero, imsi: gererSim.imsi ?? "", categorie: gererSim.categorie, operateur: gererSim.operateur ?? "", description: gererSim.description ?? "", statut: gererSim.statut,
-                      matricule: gererSim.matricule ?? "", beneficiaire: gererSim.beneficiaire ?? "", service: gererSim.service ?? "", business_line: gererSim.business_line ?? "", fonction: gererSim.fonction ?? "" });
+                    setForm({ numero: gererSim.numero, imsi: gererSim.imsi ?? "", categorie: gererSim.categorie, operateur: gererSim.operateur ?? "", statut: gererSim.statut });
                     setGererMode("modifier");
                   }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition group">
                     <div className="w-9 h-9 rounded-xl bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center shrink-0 transition"><Pencil size={16} className="text-blue-600" /></div>
@@ -752,16 +740,9 @@ export default function SimsPage() {
                   {[
                     { label: "Numéro", key: "numero", type: "text" },
                     { label: "IMSI",   key: "imsi",   type: "text" },
-                    { label: "Catégorie", key: "categorie", type: "select", opts: [["EMPLOYE", CAT_LABELS.EMPLOYE]] },
+                    { label: "Catégorie", key: "categorie", type: "select", opts: Object.entries(CAT_LABELS) },
                     { label: "Opérateur", key: "operateur", type: "text" },
-                    { label: "Statut", key: "statut", type: "select",
-                      opts: Object.entries(STATUT_LABELS) },
-                    { label: "Matricule", key: "matricule", type: "text" },
-                    { label: "Bénéficiaire", key: "beneficiaire", type: "text" },
-                    { label: "Projet", key: "service", type: "text" },
-                    { label: "BL", key: "business_line", type: "text" },
-                    { label: "Fonction", key: "fonction", type: "text" },
-                    { label: "Description", key: "description", type: "text" },
+                    { label: "Statut", key: "statut", type: "select", opts: Object.entries(STATUT_LABELS) },
                   ].map(({ label, key, type, opts }) => (
                     <div key={key}>
                       <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>

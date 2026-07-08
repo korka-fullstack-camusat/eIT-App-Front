@@ -88,11 +88,8 @@ export default function FacturesPage() {
     catch { toast.error("Impossible de supprimer"); }
   };
 
-  // Montant des factures soldées (solde_facture renseigné), hors taxe (montant_ht)
   const factureTotal = (f: FactureTelecom) =>
-    f.solde_facture != null && f.montant_ht != null
-      ? parseFloat(f.montant_ht)
-      : 0;
+    f.solde_facture != null ? parseFloat(f.solde_facture) : 0;
 
   const totalMontant = factures.reduce((s, f) => s + factureTotal(f), 0);
 

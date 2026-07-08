@@ -84,7 +84,7 @@ export default function FactureDetailPage() {
   }
 
   const f = facture;
-  const total = (f.solde_facture != null && f.montant_ht != null) ? parseFloat(f.montant_ht) : 0;
+  const total = f.solde_facture != null ? parseFloat(f.solde_facture) : 0;
   const ecart    = f.ecart != null ? parseFloat(f.ecart) : null;
   const ecartPct = f.ecart_pct ?? null;
 

@@ -14,10 +14,11 @@ const STATUT_COLORS: Record<string, string> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  ORDINATEUR_PORTABLE: "PC Portable", ORDINATEUR_FIXE: "PC Fixe",
+  ORDINATEUR_PORTABLE: "Laptop", ORDINATEUR_FIXE: "Desktop",
   ECRAN: "Écran", SOURIS: "Souris", CLAVIER: "Clavier",
   TELEPHONE: "Téléphone", TABLETTE: "Tablette", IMPRIMANTE: "Imprimante",
-  SWITCH: "Switch", ROUTEUR: "Routeur", ONDULEUR: "Onduleur", AUTRE: "Autre",
+  SWITCH: "Switch", ROUTEUR: "Routeur", ONDULEUR: "Onduleur",
+  AP: "AP", SERVEUR: "Serveur", PARE_FEU: "Pare-feu", AUTRE: "Autre",
 };
 
 const TYPES_WITH_IP = ["ORDINATEUR_PORTABLE", "ORDINATEUR_FIXE", "SWITCH", "ROUTEUR"];
@@ -342,6 +343,13 @@ export function MaterielsContent() {
           motif_restitution: recupForm.motif_restitution,
           notes_restitution: null,
         });
+        // Effacer aussi les champs statiques du matériel pour que le nom
+        // n'apparaisse plus dans le tableau après récupération.
+        await materielService.update(gererItem.id, {
+          beneficiaire_matricule: null,
+          beneficiaire_nom: null,
+          beneficiaire_prenom: null,
+        });
       }
       toast.success("Matériel récupéré — statut repassé à Disponible");
       setRecupererAttr(null);
@@ -366,7 +374,7 @@ export function MaterielsContent() {
       if (!active) {
         // Pas de fiche d'attribution formelle : matériel issu d'un import,
         // attribué via les champs Matricule/Nom/Prénom du fichier.
-        if (m.beneficiaire_nom || m.beneficiaire_prenom) {
+        if (m.statut === "ATTRIBUE" && (m.beneficiaire_nom || m.beneficiaire_prenom)) {
           setRecupererAttr({
             simple: true,
             employee_nom:       m.beneficiaire_nom,
@@ -738,7 +746,7 @@ export function MaterielsContent() {
                         <p className="text-xs text-gray-400">{m.attribution_active.employee_service}</p>
                       )}
                     </div>
-                  ) : (m.beneficiaire_nom || m.beneficiaire_prenom) ? (
+                  ) : (m.statut === "ATTRIBUE" && (m.beneficiaire_nom || m.beneficiaire_prenom)) ? (
                     <div>
                       <p className="text-xs font-semibold text-gray-800">
                         {[m.beneficiaire_prenom, m.beneficiaire_nom].filter(Boolean).join(" ")}
@@ -925,7 +933,7 @@ export function MaterielsContent() {
                     </div>
                   </div>
                 </div>
-              ) : (detailItem.beneficiaire_nom || detailItem.beneficiaire_prenom) ? (
+              ) : (detailItem.statut === "ATTRIBUE" && (detailItem.beneficiaire_nom || detailItem.beneficiaire_prenom)) ? (
                 <div className="pt-4 space-y-2.5">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Assigné à</p>
                   <div className="flex items-center gap-2.5">
@@ -1524,19 +1532,11 @@ export function MaterielsContent() {
                   placeholder="REF-IT-0042" className="input-base" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">N° PO</label>
-                  <input type="text" value={form.numero_bon_cmd}
-                    onChange={e => setForm((p: any) => ({ ...p, numero_bon_cmd: e.target.value }))}
-                    placeholder="PO-2025-XXXX" className="input-base" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Projet</label>
-                  <input type="text" value={form.projet ?? ""}
-                    onChange={e => setForm((p: any) => ({ ...p, projet: e.target.value }))}
-                    placeholder="FO, ESCO, BTS…" className="input-base" />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">N° PO</label>
+                <input type="text" value={form.numero_bon_cmd}
+                  onChange={e => setForm((p: any) => ({ ...p, numero_bon_cmd: e.target.value }))}
+                  placeholder="PO-2025-XXXX" className="input-base" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
