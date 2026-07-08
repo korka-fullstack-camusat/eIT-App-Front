@@ -421,6 +421,49 @@ export const templateService = {
   dechargeUrl:     (attributionId: number) => `${BASE}/templates/decharge/${attributionId}`,
 };
 
+// ── Export Global ─────────────────────────────────────────────────────────────
+export interface ExportLogEntry {
+  id: number;
+  user_name: string;
+  filename: string;
+  filters: Record<string, string | number>;
+  nb_rows: Record<string, number>;
+  created_at: string;
+}
+
+export const exportGlobalService = {
+  getLogs: () => ax.get<ExportLogEntry[]>("/export-global/logs").then(r => r.data),
+
+  export: async (params?: {
+    mat_statut?: string; mat_type?: string;
+    att_statut?: string;
+    sim_categorie?: string; sim_statut?: string;
+    site_filter_sim?: string;
+    veh_filter_sim?: string;
+    fact_annee?: number; fact_mois?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.mat_statut)      q.set("mat_statut",      params.mat_statut);
+    if (params?.mat_type)        q.set("mat_type",        params.mat_type);
+    if (params?.att_statut)      q.set("att_statut",      params.att_statut);
+    if (params?.sim_categorie)   q.set("sim_categorie",   params.sim_categorie);
+    if (params?.sim_statut)      q.set("sim_statut",      params.sim_statut);
+    if (params?.site_filter_sim) q.set("site_filter_sim", params.site_filter_sim);
+    if (params?.veh_filter_sim)  q.set("veh_filter_sim",  params.veh_filter_sim);
+    if (params?.fact_annee)      q.set("fact_annee",      String(params.fact_annee));
+    if (params?.fact_mois)       q.set("fact_mois",       String(params.fact_mois));
+    const resp = await ax.get(`/export-global?${q.toString()}`, { responseType: "blob" });
+    const url  = URL.createObjectURL(new Blob([resp.data],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    link.setAttribute("download", `export_global_${date}.xlsx`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
+  },
+};
+
 // ── Employés (proxy eRh-App) ──────────────────────────────────────────────────
 export const employeeService = {
   search: (search: string, status = "ACTIVE") =>

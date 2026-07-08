@@ -18,7 +18,7 @@ interface AttrStats   { active: number; cloturee: number; employees_actifs: numb
 const MOIS_COURTS = ["","Jan","Fév","Mar","Avr","Mai","Juin","Juil","Aoû","Sep","Oct","Nov","Déc"];
 const MOIS_LABELS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
-type Section = "factures" | "materiels" | "telephonie" | "attributions";
+type Section = "overview" | "factures" | "materiels" | "telephonie" | "attributions";
 
 // ── Libellés type matériel ────────────────────────────────────────────────────
 const TYPE_LABELS: Record<string, string> = {
@@ -66,6 +66,102 @@ function DonutChart({ segments, total }: { segments: { label: string; value: num
         <p className="text-2xl font-black text-gray-800">{total}</p>
         <p className="text-[10px] text-gray-400">total</p>
       </div>
+    </div>
+  );
+}
+
+// ── Jauge circulaire (taux) ───────────────────────────────────────────────────
+function ProgressRing({ pct, size = 80, stroke = 10, color = "#1e3a5f", label }: {
+  pct: number; size?: number; stroke?: number; color?: string; label?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - Math.min(1, pct / 100));
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeDasharray={circ} strokeDashoffset={offset}
+            strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-lg font-black text-gray-800 leading-none">{Math.round(pct)}%</span>
+        </div>
+      </div>
+      {label && <p className="text-[10px] text-gray-400 font-medium text-center leading-tight">{label}</p>}
+    </div>
+  );
+}
+
+// ── Badge delta (+/-%) ────────────────────────────────────────────────────────
+function DeltaBadge({ delta, unit = "%" }: { delta: number | null; unit?: string }) {
+  if (delta == null) return null;
+  const positive = delta > 0;
+  const zero     = delta === 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+      zero ? "bg-gray-100 text-gray-400" :
+      positive ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+    }`}>
+      {!zero && (positive ? <TrendingUp size={9}/> : <TrendingDown size={9}/>)}
+      {positive ? "+" : ""}{delta.toFixed(1)}{unit}
+    </span>
+  );
+}
+
+// ── Bar chart vertical ────────────────────────────────────────────────────────
+function VerticalBarChart({ data, colorHex = "#1e3a5f", unit = "" }: {
+  data: { label: string; value: number; color?: string }[];
+  colorHex?: string;
+  unit?: string;
+}) {
+  const W = 600, H = 200, padX = 24, padY = 16, barGap = 6;
+  const max = Math.max(1, ...data.map(d => d.value));
+  const n = data.length;
+  const barW = n > 0 ? Math.max(8, (W - padX * 2 - barGap * (n - 1)) / n) : 20;
+  const chartH = H - padY * 2;
+  const gradId = `vbar-grad-${colorHex.replace("#", "")}`;
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H + 28}`} className="w-full" style={{ minWidth: 360 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colorHex} stopOpacity="0.9" />
+            <stop offset="100%" stopColor={colorHex} stopOpacity="0.5" />
+          </linearGradient>
+        </defs>
+        {/* Grille horizontale */}
+        {[0, 0.25, 0.5, 0.75, 1].map(t => (
+          <line key={t}
+            x1={padX} x2={W - padX}
+            y1={padY + t * chartH} y2={padY + t * chartH}
+            stroke="#f1f5f9" strokeWidth="1"
+          />
+        ))}
+        {/* Barres */}
+        {data.map((d, i) => {
+          const x = padX + i * (barW + barGap);
+          const barH = max > 0 ? (d.value / max) * chartH : 0;
+          const y = padY + chartH - barH;
+          const fill = d.color ?? `url(#${gradId})`;
+          return (
+            <g key={d.label}>
+              <rect x={x} y={y} width={barW} height={barH} fill={fill} rx="3" />
+              {d.value > 0 && (
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize="9" fill="#64748b" fontWeight="700">
+                  {d.value > 9999 ? `${Math.round(d.value / 1000)}k` : d.value.toLocaleString("fr-FR")}{unit}
+                </text>
+              )}
+              <text x={x + barW / 2} y={H + 16} textAnchor="middle" fontSize="10" fill="#9ca3af">
+                {d.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -223,7 +319,7 @@ function AlertCard({ level, message }: { level: AlertLevel; message: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [section,    setSection]    = useState<Section>("factures");
+  const [section,    setSection]    = useState<Section>("overview");
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [byType,     setByType]     = useState<TypeRow[]>([]);
   const [byBrand,    setByBrand]    = useState<BrandRow[]>([]);
@@ -391,8 +487,9 @@ export default function DashboardPage() {
   const hasAttrMonthlyData = attributionMonthly.some(d => d.value > 0);
 
   const SECTIONS: { key: Section; label: string; icon: React.ReactNode }[] = [
+    { key: "overview",     label: "Vue globale",  icon: <BarChart2 size={14} /> },
     { key: "factures",     label: "Factures",     icon: <Receipt size={14} /> },
-    { key: "materiels",    label: "Matériel",      icon: <Monitor size={14} /> },
+    { key: "materiels",    label: "Matériel",     icon: <Monitor size={14} /> },
     { key: "telephonie",   label: "Téléphonie",   icon: <Phone size={14} /> },
     { key: "attributions", label: "Attributions", icon: <Users size={14} /> },
   ];
@@ -424,6 +521,433 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* ══════════════════════════════ VUE GLOBALE ════════════════════════════ */}
+      {section === "overview" && (() => {
+        // ── Calculs dérivés dynamiques ───────────────────────────────────────
+        const tauxUtilisation   = stats && stats.total > 0 ? (stats.attribue / stats.total) * 100 : 0;
+        const tauxMaintenance   = stats && stats.total > 0 ? (stats.maintenance / stats.total) * 100 : 0;
+        const tauxDisponible    = stats && stats.total > 0 ? (stats.disponible / stats.total) * 100 : 0;
+        const simInactives      = (simByStatut.get("INACTIVE") ?? 0) + (simByStatut.get("SUSPENDUE") ?? 0);
+        const simActif_count    = simActives;
+
+        // Évolution téléphonie toutes catégories — merge par période
+        type PeriodKey = string; // "AAAAMM"
+        const periodMap = new Map<PeriodKey, { label: string; sims: number; veh: number; rms: number }>();
+        const addPeriod = (arr: typeof simsCoutEvolution, field: "sims"|"veh"|"rms") => {
+          arr.forEach(p => {
+            const key = `${p.annee}${String(p.mois).padStart(2,"0")}`;
+            if (!periodMap.has(key)) periodMap.set(key, { label: `${MOIS_COURTS[p.mois]} ${p.annee}`, sims:0, veh:0, rms:0 });
+            periodMap.get(key)![field] += p.total;
+          });
+        };
+        addPeriod(simsCoutEvolution, "sims");
+        addPeriod(vehiculesCoutEvolution, "veh");
+        addPeriod(sitesEvolution, "rms");
+        const periodsSorted = [...periodMap.entries()].sort((a,b) => a[0].localeCompare(b[0])).slice(-12);
+
+        // Totaux & deltas téléphonie
+        const coutSimsTotal = simsCoutEvolution.reduce((s,p) => s+p.total, 0);
+        const coutVehTotal  = vehiculesCoutEvolution.reduce((s,p) => s+p.total, 0);
+        const coutRmsTotal  = sitesEvolution.reduce((s,p) => s+p.total, 0);
+        const totalTel      = coutSimsTotal + coutVehTotal + coutRmsTotal;
+
+        const lastPeriods   = periodsSorted.slice(-2);
+        const prevPeriodTot = lastPeriods.length >= 2 ? lastPeriods[lastPeriods.length-2][1].sims + lastPeriods[lastPeriods.length-2][1].veh + lastPeriods[lastPeriods.length-2][1].rms : null;
+        const lastPeriodTot = lastPeriods.length >= 1 ? lastPeriods[lastPeriods.length-1][1].sims + lastPeriods[lastPeriods.length-1][1].veh + lastPeriods[lastPeriods.length-1][1].rms : null;
+        const deltaTelPct   = prevPeriodTot && lastPeriodTot != null && prevPeriodTot > 0
+          ? ((lastPeriodTot - prevPeriodTot) / prevPeriodTot) * 100 : null;
+
+        // Coût moyen par SIM active
+        const coutMoyenSim  = simActif_count > 0 && lastPeriodTot != null ? lastPeriodTot / simActif_count : null;
+
+        // Dernier écart facture
+        const lastFact      = [...factures].sort((a,b) => b.mois - a.mois)[0] ?? null;
+        const lastSolde     = lastFact?.solde_facture != null ? parseFloat(lastFact.solde_facture) : null;
+        const prevFact      = [...factures].sort((a,b) => b.mois - a.mois)[1] ?? null;
+        const prevSolde     = prevFact?.solde_facture != null ? parseFloat(prevFact.solde_facture) : null;
+        const deltaFactPct  = prevSolde && lastSolde != null && prevSolde > 0
+          ? ((lastSolde - prevSolde) / prevSolde) * 100 : null;
+
+        // Alertes DG enrichies
+        const dgAlerts: { level: AlertLevel; title: string; detail: string }[] = [];
+        if (stats) {
+          if (stats.reforme > 0)
+            dgAlerts.push({ level:"danger",  title:`${stats.reforme} matériel(s) réformé(s)`, detail:"À retirer du parc — impact sur inventaire" });
+          if (tauxMaintenance > 15)
+            dgAlerts.push({ level:"danger",  title:`${Math.round(tauxMaintenance)}% du parc en maintenance`, detail:`${stats.maintenance} équipements immobilisés` });
+          else if (stats.maintenance > 0)
+            dgAlerts.push({ level:"warning", title:`${stats.maintenance} matériel(s) en maintenance`, detail:"Suivi requis" });
+          if (tauxDisponible < 20 && stats.total > 0)
+            dgAlerts.push({ level:"warning", title:`Stock faible : ${stats.disponible} dispo. (${Math.round(tauxDisponible)}%)`, detail:"Anticiper les commandes" });
+        }
+        if (simInactives > 0)
+          dgAlerts.push({ level:"warning", title:`${simInactives} SIM inactive(s)/suspendue(s)`, detail:"Coûts potentiellement inutiles" });
+        if (deltaTelPct != null && deltaTelPct > 10)
+          dgAlerts.push({ level:"danger",  title:`Coût téléphonie +${deltaTelPct.toFixed(1)}% ce mois`, detail:"Hausse significative vs mois précédent" });
+        if (deltaFactPct != null && Math.abs(deltaFactPct) > 8)
+          dgAlerts.push({ level: deltaFactPct > 0 ? "danger" : "info",
+            title: `Facture ${deltaFactPct > 0 ? "en hausse" : "en baisse"} de ${Math.abs(deltaFactPct).toFixed(1)}%`,
+            detail: `Vs mois précédent — ${lastFact ? `${MOIS_LABELS[lastFact.mois]} ${lastFact.annee}` : ""}` });
+        if (dgAlerts.length === 0)
+          dgAlerts.push({ level:"info", title:"Aucune anomalie détectée", detail:"Tous les indicateurs sont dans les normes" });
+
+        // Bar chart types matériels
+        const typesBars = byType.slice(0, 9).map((r, i) => ({
+          label: (TYPE_LABELS[r.type] ?? r.type).replace(" ", "\n"),
+          value: r.count,
+          color: TYPE_COLORS[i % TYPE_COLORS.length],
+        }));
+
+        // Bar chart opérateurs par coût
+        const operateurMap = new Map<string, number>();
+        factures.forEach(f => {
+          const k = f.operateur ?? "Inconnu";
+          const v = f.solde_facture != null ? parseFloat(f.solde_facture) : 0;
+          operateurMap.set(k, (operateurMap.get(k) ?? 0) + v);
+        });
+        const opRows = [...operateurMap.entries()].sort((a,b)=>b[1]-a[1]);
+        const maxOp  = opRows[0]?.[1] ?? 1;
+
+        // Évolution coûts combinés pour le bar chart
+        const evolBars = periodsSorted.map(([,p]) => ({
+          label: p.label,
+          value: Math.round(p.sims + p.veh + p.rms),
+        }));
+
+        return (
+          <>
+            {/* ── Bandeau date ── */}
+            <p className="text-xs text-gray-400 mb-4 font-medium">
+              Données en temps réel — {new Date().toLocaleDateString("fr-FR", { weekday:"long", day:"numeric", month:"long", year:"numeric" })}
+            </p>
+
+            {/* ══ Ligne 1 : KPIs stratégiques avec jauges et deltas ══ */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+
+              {/* Taux d'utilisation du parc */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex items-center gap-4">
+                <ProgressRing pct={tauxUtilisation} size={72} stroke={8} color="#3b82f6" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Taux d'utilisation</p>
+                  <p className="text-xl font-black text-gray-800">{stats?.attribue ?? 0} <span className="text-sm font-medium text-gray-400">/ {stats?.total ?? 0}</span></p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">équipements attribués</p>
+                  {stats && stats.disponible > 0 && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">{stats.disponible} disponibles</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Coût téléphonie dernier mois */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                    <Receipt size={15} className="text-purple-600" />
+                  </div>
+                  <DeltaBadge delta={deltaTelPct} />
+                </div>
+                <p className="text-xl font-black text-gray-800">
+                  {lastPeriodTot != null ? Math.round(lastPeriodTot).toLocaleString("fr-FR") : "—"}
+                </p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">Coût téléphonie — dernier mois</p>
+                <p className="text-[10px] text-gray-300 mt-1">Cumul : {Math.round(totalTel).toLocaleString("fr-FR")} FCFA</p>
+              </div>
+
+              {/* Coût moyen / SIM active */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Smartphone size={15} className="text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-medium">{simActif_count} SIM actives</span>
+                </div>
+                <p className="text-xl font-black text-gray-800">
+                  {coutMoyenSim != null ? Math.round(coutMoyenSim).toLocaleString("fr-FR") : "—"}
+                </p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">Coût moyen / SIM active</p>
+                {simInactives > 0 && (
+                  <p className="text-[10px] text-amber-600 font-semibold mt-1">{simInactives} SIM inactive(s)</p>
+                )}
+              </div>
+
+              {/* Dernière facture opérateur */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <Wallet size={15} className="text-amber-600" />
+                  </div>
+                  <DeltaBadge delta={deltaFactPct} />
+                </div>
+                <p className="text-xl font-black text-gray-800">
+                  {lastSolde != null ? Math.round(lastSolde).toLocaleString("fr-FR") : "—"}
+                </p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                  {lastFact ? `Solde facture — ${MOIS_LABELS[lastFact.mois]} ${lastFact.annee}` : "Dernière facture"}
+                </p>
+                <p className="text-[10px] text-gray-300 mt-1">{lastFact?.operateur ?? "—"}</p>
+              </div>
+            </div>
+
+            {/* ══ Ligne 2 : Évolution coûts téléphonie + Alertes ══ */}
+            <div className="grid md:grid-cols-3 gap-4 mb-4">
+              <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 size={14} className="text-camublue-900" />
+                    <h2 className="font-bold text-gray-700 text-sm">Évolution coûts téléphonie — 12 derniers mois</h2>
+                  </div>
+                  {lastPeriodTot != null && deltaTelPct != null && (
+                    <DeltaBadge delta={deltaTelPct} />
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 mb-3">Toutes catégories : SIM Employés + Véhicules M2M + Sites RMS (FCFA)</p>
+                {evolBars.length > 0 ? (
+                  <VerticalBarChart data={evolBars} colorHex="#1e3a5f" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                    <BarChart2 size={32} />
+                    <p className="text-sm mt-2">Aucune donnée de facturation disponible</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Alertes DG */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Points d'attention</h2>
+                </div>
+                <div className="space-y-2.5">
+                  {dgAlerts.map((a, i) => {
+                    const cfg = {
+                      danger:  { bg:"bg-red-50 border-red-100",    icon:<AlertCircle size={13} className="text-red-500 shrink-0 mt-0.5"/>,    title:"text-red-700"   },
+                      warning: { bg:"bg-amber-50 border-amber-100", icon:<AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5"/>, title:"text-amber-700" },
+                      info:    { bg:"bg-blue-50 border-blue-100",   icon:<Info size={13} className="text-blue-500 shrink-0 mt-0.5"/>,          title:"text-blue-700"  },
+                    }[a.level];
+                    return (
+                      <div key={i} className={`flex gap-2 px-3 py-2.5 rounded-xl border ${cfg.bg}`}>
+                        {cfg.icon}
+                        <div>
+                          <p className={`text-xs font-bold ${cfg.title}`}>{a.title}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{a.detail}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Taux de maintenance */}
+                {stats && stats.total > 0 && (
+                  <div className="mt-4 pt-3 border-t border-gray-50">
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Santé du parc</p>
+                    <div className="flex items-center gap-3">
+                      <ProgressRing pct={tauxDisponible} size={56} stroke={7} color="#10b981" />
+                      <ProgressRing pct={tauxMaintenance} size={56} stroke={7} color="#f59e0b" />
+                      <div className="text-xs text-gray-400 space-y-1">
+                        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/><span>Disponible</span></div>
+                        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"/><span>Maintenance</span></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ══ Ligne 3 : Matériels par type + Coûts par opérateur + Répartition SIM ══ */}
+            <div className="grid md:grid-cols-3 gap-4 mb-4">
+
+              {/* Matériels par catégorie */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Monitor size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Parc matériel — par type</h2>
+                </div>
+                <p className="text-[11px] text-gray-400 mb-3">
+                  {stats?.total ?? 0} équipements · {Math.round(tauxUtilisation)}% utilisés
+                </p>
+                {typesBars.length > 0 ? (
+                  <VerticalBarChart data={typesBars} colorHex="#3b82f6" />
+                ) : <p className="text-gray-400 text-sm">Chargement…</p>}
+              </div>
+
+              {/* Coûts par opérateur */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Phone size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Factures — par opérateur</h2>
+                </div>
+                <p className="text-[11px] text-gray-400 mb-4">Montant total FCFA (solde facture)</p>
+                {opRows.length > 0 ? (
+                  <div className="space-y-3">
+                    {opRows.map(([op, total], i) => (
+                      <div key={op}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium text-gray-600 truncate">{op}</span>
+                          <span className="font-bold text-gray-800 shrink-0 ml-2">
+                            {Math.round(total).toLocaleString("fr-FR")}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-700"
+                            style={{ width:`${(total/maxOp)*100}%`, backgroundColor: TYPE_COLORS[i % TYPE_COLORS.length] }} />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5 text-right">
+                          {maxOp > 0 ? Math.round((total/maxOp)*100) : 0}% du total
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-gray-400 text-sm">{factLoading ? "Chargement…" : "Aucune facture"}</p>}
+              </div>
+
+              {/* Répartition SIM + attributions */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Smartphone size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Parc SIM & Attributions</h2>
+                </div>
+                <p className="text-[11px] text-gray-400 mb-3">{sims.length} SIM · {attrStats?.active ?? 0} attributions actives</p>
+
+                {/* Donut SIM */}
+                {sims.length > 0 && (
+                  <>
+                    <div className="flex justify-center mb-3">
+                      <DonutChart
+                        segments={Array.from(simByCategorie.entries()).map(([cat, count], i) => ({
+                          label: CATEGORIE_LABELS[cat] ?? cat, value: count, color: TYPE_COLORS[(i+2)%TYPE_COLORS.length],
+                        }))}
+                        total={sims.length}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      {Array.from(simByCategorie.entries()).map(([cat, count], i) => (
+                        <div key={cat} className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[(i+2)%TYPE_COLORS.length] }} />
+                          <span className="flex-1">{CATEGORIE_LABELS[cat] ?? cat}</span>
+                          <span className="font-bold text-gray-700">{count}</span>
+                          <span className="text-gray-300">{Math.round((count/sims.length)*100)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Résumé attributions */}
+                {attrStats && (
+                  <div className="mt-3 pt-3 border-t border-gray-50 grid grid-cols-3 gap-1.5">
+                    <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                      <p className="text-sm font-black text-emerald-600">{attrStats.active}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">Actives</p>
+                    </div>
+                    <div className="text-center p-2 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-black text-gray-500">{attrStats.cloturee}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">Clôturées</p>
+                    </div>
+                    <div className="text-center p-2 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-black text-blue-600">{attrStats.employees_actifs}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">Employés</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ══ Ligne 4 : Ventilation coûts téléphonie + Top services ══ */}
+            <div className="grid md:grid-cols-3 gap-4 mb-4">
+
+              {/* Ventilation téléphonie */}
+              <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Receipt size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Ventilation du budget téléphonie</h2>
+                </div>
+                <p className="text-[11px] text-gray-400 mb-4">Cumul toutes périodes · Total : {Math.round(totalTel).toLocaleString("fr-FR")} FCFA</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label:"SIM Employés", value:coutSimsTotal, nb:simByCategorie.get("EMPLOYE")??0, color:"#8b5cf6", bg:"bg-purple-50", border:"border-purple-100", text:"text-purple-700", sub:"text-purple-400" },
+                    { label:"Véhicules M2M", value:coutVehTotal, nb:simByCategorie.get("M2M_VEHICULE")??0, color:"#0ea5e9", bg:"bg-sky-50", border:"border-sky-100", text:"text-sky-700", sub:"text-sky-400" },
+                    { label:"Sites RMS",    value:coutRmsTotal, nb:sitesRMS.length, color:"#f97316", bg:"bg-orange-50", border:"border-orange-100", text:"text-orange-700", sub:"text-orange-400" },
+                  ].map(c => (
+                    <div key={c.label} className={`rounded-xl border p-4 ${c.bg} ${c.border}`}>
+                      <p className={`text-lg font-black ${c.text}`}>
+                        {totalTel > 0 ? Math.round(c.value).toLocaleString("fr-FR") : "—"}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-0.5 font-semibold">{c.label}</p>
+                      <p className={`text-[10px] mt-1 ${c.sub}`}>{c.nb} unité(s)</p>
+                      {totalTel > 0 && c.value > 0 && (
+                        <>
+                          <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width:`${(c.value/totalTel)*100}%`, backgroundColor: c.color }} />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1 text-right font-bold">
+                            {Math.round((c.value/totalTel)*100)}%
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* Sites RMS */}
+                <div className="mt-4 pt-3 border-t border-gray-50 flex items-center gap-6 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <MapPin size={12} className="text-blue-400"/> {sitesRMS.length} sites RMS
+                    <span className="text-gray-200">|</span>
+                    <span className="text-orange-500 font-bold">{sitesRMS.filter(s=>(s.sim_operateur??"Orange")==="Orange").length} Orange</span>
+                    <span className="text-gray-200">|</span>
+                    <span className="text-red-500 font-bold">{sitesRMS.filter(s=>s.sim_operateur==="Free").length} Free</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <AlertTriangle size={12} className="text-amber-400"/> {sitesRMS.filter(s=>!s.sim_numero).length} site(s) sans SIM assignée
+                  </div>
+                </div>
+              </div>
+
+              {/* Top services attributions */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users size={14} className="text-camublue-900" />
+                  <h2 className="font-bold text-gray-700 text-sm">Top services — équipements</h2>
+                </div>
+                <p className="text-[11px] text-gray-400 mb-4">Attributions actives par service</p>
+                {attrStats && attrStats.par_service.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {attrStats.par_service.slice(0, 7).map((r, i) => {
+                      const pct = attrStats.active > 0 ? (r.count / attrStats.active) * 100 : 0;
+                      return (
+                        <div key={r.service}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-600 truncate max-w-[120px] font-medium">{r.service}</span>
+                            <span className="font-bold text-gray-800 shrink-0 ml-1">{r.count}</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width:`${pct}%`, backgroundColor: TYPE_COLORS[i%TYPE_COLORS.length] }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-gray-400 text-sm">{attrStats ? "Aucune attribution" : "Chargement…"}</p>}
+
+                {/* Top marques */}
+                {byBrand.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-gray-50">
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2">Top marques</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {byBrand.slice(0, 5).map((r, i) => (
+                        <span key={r.marque} className="text-[10px] font-bold px-2 py-1 rounded-lg"
+                          style={{ backgroundColor: TYPE_COLORS[i%TYPE_COLORS.length]+"22", color: TYPE_COLORS[i%TYPE_COLORS.length] }}>
+                          {r.marque} · {r.count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ══════════════════════════════ FACTURES ═══════════════════════════════ */}
       {section === "factures" && (
