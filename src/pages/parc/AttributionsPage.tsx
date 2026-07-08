@@ -127,9 +127,6 @@ export function AttributionsContent() {
   type AttrColKey = (typeof ATTR_COLS)[number]["key"];
 
   const [exportOpen,    setExportOpen]    = useState(false);
-  const [exportDebut,   setExportDebut]   = useState("");
-  const [exportFin,     setExportFin]     = useState("");
-  const [exportStatut,  setExportStatut]  = useState("");
   const [exportLoading, setExportLoading] = useState(false);
   const [exportCols,    setExportCols]    = useState<Set<AttrColKey>>(
     new Set(ATTR_COLS.map(c => c.key))
@@ -1375,31 +1372,26 @@ export function AttributionsContent() {
             </div>
             <div className="px-6 py-5 space-y-5">
 
-              {/* Période */}
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
-                  Période (date d'attribution)
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Du</label>
-                    <input type="date" value={exportDebut} onChange={e => setExportDebut(e.target.value)} className="input-base" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Au</label>
-                    <input type="date" value={exportFin} onChange={e => setExportFin(e.target.value)} className="input-base" />
-                  </div>
+              {/* Filtres actifs */}
+              <div className="bg-camublue-900/5 border border-camublue-900/10 rounded-xl px-4 py-3">
+                <p className="text-xs font-bold text-camublue-900 uppercase tracking-wide mb-2">Filtres appliqués (vue actuelle)</p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {filtre
+                    ? <span className="px-2 py-1 rounded-lg bg-camublue-900 text-white font-semibold">{filtre === "ACTIVE" ? "Actives" : "Clôturées"}</span>
+                    : <span className="text-gray-400">Statut : Tous</span>
+                  }
+                  {search
+                    ? <span className="px-2 py-1 rounded-lg bg-camublue-900 text-white font-semibold">Recherche : {search}</span>
+                    : null
+                  }
+                  {serviceFilter
+                    ? <span className="px-2 py-1 rounded-lg bg-camublue-900 text-white font-semibold">Service : {serviceFilter}</span>
+                    : null
+                  }
+                  {!filtre && !search && !serviceFilter && (
+                    <span className="text-gray-400">Toutes les attributions</span>
+                  )}
                 </div>
-              </div>
-
-              {/* Statut */}
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Statut</p>
-                <select value={exportStatut} onChange={e => setExportStatut(e.target.value)} className="input-base">
-                  <option value="">Tous</option>
-                  <option value="ACTIVE">Actives</option>
-                  <option value="CLOTUREE">Clôturées</option>
-                </select>
               </div>
 
               {/* Colonnes */}
@@ -1443,10 +1435,10 @@ export function AttributionsContent() {
                     setExportLoading(true);
                     try {
                       await attributionService.exportExcel({
-                        date_debut: exportDebut  || undefined,
-                        date_fin:   exportFin    || undefined,
-                        statut:     exportStatut || undefined,
-                        cols:       exportCols.size > 0 ? Array.from(exportCols).join(",") : undefined,
+                        statut:  filtre        || undefined,
+                        service: serviceFilter || undefined,
+                        search:  search        || undefined,
+                        cols:    exportCols.size > 0 ? Array.from(exportCols).join(",") : undefined,
                       });
                       toast.success("Fichier Excel généré avec succès");
                       setExportOpen(false);

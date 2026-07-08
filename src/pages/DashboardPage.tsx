@@ -396,9 +396,9 @@ export default function DashboardPage() {
 
   // ── Statistiques Factures ──────────────────────────────────────────────────
   const factureTotal = (f: FactureTelecom) =>
-    f.montant_ttc != null
-      ? parseFloat(f.montant_ttc)
-      : f.lignes.reduce((s, l) => s + parseFloat(l.montant || "0"), 0);
+    f.solde_facture != null
+      ? parseFloat(f.solde_facture)
+      : f.lignes.reduce((s, l) => s + parseFloat(l.solde_facture || l.montant || "0"), 0);
 
   const totalFactures   = factures.reduce((s, f) => s + factureTotal(f), 0);
   const nbFactures      = factures.length;
@@ -970,7 +970,7 @@ export default function DashboardPage() {
             <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-card p-5">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart2 size={15} className="text-camublue-900" />
-                <h2 className="font-bold text-gray-700 text-sm">Montant TTC par mois — {currentYear}</h2>
+                <h2 className="font-bold text-gray-700 text-sm">Montant payé par mois — {currentYear}</h2>
               </div>
               {factLoading ? (
                 <p className="text-gray-400 text-sm">Chargement…</p>
@@ -1750,7 +1750,7 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <StatTile label="Numéro" value={modalFacture.numero_compte ?? "—"} />
                     <StatTile
-                      label="Montant TTC"
+                      label="Montant payé"
                       value={`${factureTotal(modalFacture).toLocaleString("fr-FR")} FCFA`}
                     />
                     <StatTile

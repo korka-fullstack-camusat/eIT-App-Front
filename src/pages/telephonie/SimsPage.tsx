@@ -424,8 +424,8 @@ export default function SimsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-center">
-                  {s.derniere_facture?.montant_ttc != null
-                    ? <span className="font-semibold text-gray-700">{s.derniere_facture.montant_ttc.toLocaleString("fr-FR")}</span>
+                  {s.derniere_facture?.solde_facture != null
+                    ? <span className="font-semibold text-gray-700">{s.derniere_facture.solde_facture.toLocaleString("fr-FR")}</span>
                     : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3">

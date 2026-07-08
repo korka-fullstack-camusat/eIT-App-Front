@@ -400,8 +400,8 @@ export default function SitesPage() {
                 <td className="px-4 py-3 text-center">
                   {s.derniere_facture ? (
                     <p className="text-sm font-semibold text-gray-800">
-                      {s.derniere_facture.montant_ttc != null
-                        ? Number(s.derniere_facture.montant_ttc).toLocaleString("fr-FR")
+                      {s.derniere_facture.solde_facture != null
+                        ? Number(s.derniere_facture.solde_facture).toLocaleString("fr-FR")
                         : "—"}
                     </p>
                   ) : (
@@ -643,7 +643,7 @@ export default function SitesPage() {
                             <tr>
                               <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Période</th>
                               <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Opérateur</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Montant TTC</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Montant payé</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
@@ -652,11 +652,13 @@ export default function SitesPage() {
                                 <td className="px-3 py-2 text-gray-700">{MOIS_LABELS[l.mois - 1] ?? l.mois} {l.annee}</td>
                                 <td className="px-3 py-2 text-gray-500">{l.operateur ?? "—"}</td>
                                 <td className="px-3 py-2 text-right font-semibold text-gray-800">
-                                  {l.montant_ttc != null
-                                    ? `${Number(l.montant_ttc).toLocaleString("fr-FR")} F`
-                                    : l.montant != null
-                                      ? `${Number(l.montant).toLocaleString("fr-FR")} F`
-                                      : "—"}
+                                  {l.solde_facture != null
+                                    ? `${Number(l.solde_facture).toLocaleString("fr-FR")} F`
+                                    : l.montant_ttc != null
+                                      ? `${Number(l.montant_ttc).toLocaleString("fr-FR")} F`
+                                      : l.montant != null
+                                        ? `${Number(l.montant).toLocaleString("fr-FR")} F`
+                                        : "—"}
                                 </td>
                               </tr>
                             ))}

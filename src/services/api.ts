@@ -42,6 +42,7 @@ export const materielService = {
   statsByProjet:()          => ax.get("/materiels/stats/par-projet").then(r => r.data),
   exportExcel: async (params: {
     statut?: string; type_materiel?: string; etat?: string; search?: string;
+    projet?: string; assigne?: string;
     date_debut?: string; date_fin?: string; cols?: string;
   }) => {
     const q = new URLSearchParams();
@@ -49,6 +50,8 @@ export const materielService = {
     if (params.type_materiel) q.set("type_materiel", params.type_materiel);
     if (params.etat)          q.set("etat",          params.etat);
     if (params.search)        q.set("search",        params.search);
+    if (params.projet)        q.set("projet",        params.projet);
+    if (params.assigne)       q.set("assigne",       params.assigne);
     if (params.date_debut)    q.set("date_debut",    params.date_debut);
     if (params.date_fin)      q.set("date_fin",      params.date_fin);
     if (params.cols)          q.set("cols",          params.cols);
@@ -73,6 +76,13 @@ export const materielService = {
       "/materiels/import", form, { headers: { "Content-Type": "multipart/form-data" } }
     ).then(r => r.data);
   },
+  importUpdate: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ updated: number; skipped: number; errors: { ligne: number; message: string }[] }>(
+      "/materiels/import-update", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
 };
 
 // ── Attributions ──────────────────────────────────────────────────────────────
@@ -90,11 +100,13 @@ export const attributionService = {
   stats:           ()           => ax.get("/attributions/stats/summary").then(r => r.data),
   dechargeUrl:     (id: number) => `${BASE}/templates/decharge/${id}`,
   attestationUrl:  (employeeId: number) => `${BASE}/templates/attestation/employee/${employeeId}`,
-  exportExcel: async (params?: { date_debut?: string; date_fin?: string; statut?: string; cols?: string }) => {
+  exportExcel: async (params?: { date_debut?: string; date_fin?: string; statut?: string; service?: string; search?: string; cols?: string }) => {
     const q = new URLSearchParams();
     if (params?.date_debut) q.set("date_debut", params.date_debut);
     if (params?.date_fin)   q.set("date_fin",   params.date_fin);
     if (params?.statut)     q.set("statut",     params.statut);
+    if (params?.service)    q.set("service",    params.service);
+    if (params?.search)     q.set("search",     params.search);
     if (params?.cols)       q.set("cols",       params.cols);
     const response = await ax.get(`/attributions/export-excel?${q.toString()}`, { responseType: "blob" });
     const url  = URL.createObjectURL(new Blob([response.data],
@@ -263,7 +275,7 @@ export const siteService = {
     ).then(r => r.data);
   },
   facturation: (id: number) =>
-    ax.get<{ sim_numero: string | null; lignes: { mois: number; annee: number; operateur: string | null; montant: number | null; montant_ttc: number | null }[] }>(
+    ax.get<{ sim_numero: string | null; lignes: { mois: number; annee: number; operateur: string | null; montant: number | null; montant_ttc: number | null; solde_facture: number | null }[] }>(
       `/telephonie/sites/${id}/facturation`
     ).then(r => r.data),
   statsPeriodes: () =>

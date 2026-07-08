@@ -141,9 +141,10 @@ export function MaterielsContent() {
 
   // modal Import
   const [importOpen,    setImportOpen]    = useState(false);
+  const [importTab,     setImportTab]     = useState<"create" | "update">("create");
   const [importFile,    setImportFile]    = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult,  setImportResult]  = useState<{ created: number; errors: { ligne: number; message: string }[] } | null>(null);
+  const [importResult,  setImportResult]  = useState<{ created?: number; updated?: number; skipped?: number; errors: { ligne: number; message: string }[] } | null>(null);
 
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -498,10 +499,12 @@ export function MaterielsContent() {
     setExportLoading(true);
     try {
       await materielService.exportExcel({
-        statut:        statut        || undefined,
-        type_materiel: typeFilter    || undefined,
-        etat:          etatFilter    || undefined,
-        search:        search        || undefined,
+        // statut volontairement omis : l'export inclut tous les statuts (disponible, attribué, en panne…)
+        type_materiel: typeFilter      || undefined,
+        etat:          etatFilter      || undefined,
+        search:        search          || undefined,
+        projet:        projetFilter    || undefined,
+        assigne:       assigneFilter   || undefined,
         date_debut:    exportDateDebut || undefined,
         date_fin:      exportDateFin   || undefined,
         cols:          exportCols.size > 0 ? Array.from(exportCols).join(",") : undefined,
@@ -1697,20 +1700,33 @@ export function MaterielsContent() {
       {/* ── Modal Import ──────────────────────────────────────────────────── */}
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="font-bold text-lg text-camublue-900">Importer des matériels</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Fichier CSV avec séparateur point-virgule</p>
-              </div>
-              <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); }}
+              <h2 className="font-bold text-lg text-camublue-900">Importer des matériels</h2>
+              <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); setImportTab("create"); }}
                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
                 <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
 
-              {/* Résultat après import */}
+            {/* Onglets */}
+            {!importResult && (
+              <div className="flex border-b border-gray-100">
+                <button
+                  onClick={() => { setImportTab("create"); setImportFile(null); }}
+                  className={`flex-1 py-3 text-sm font-semibold transition ${importTab === "create" ? "text-camublue-900 border-b-2 border-camublue-900" : "text-gray-400 hover:text-gray-600"}`}>
+                  Importer nouveaux
+                </button>
+                <button
+                  onClick={() => { setImportTab("update"); setImportFile(null); }}
+                  className={`flex-1 py-3 text-sm font-semibold transition ${importTab === "update" ? "text-camublue-900 border-b-2 border-camublue-900" : "text-gray-400 hover:text-gray-600"}`}>
+                  Mettre à jour
+                </button>
+              </div>
+            )}
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Résultat */}
               {importResult ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -1718,45 +1734,50 @@ export function MaterielsContent() {
                       <span className="text-emerald-600 font-bold text-sm">✓</span>
                     </div>
                     <div>
-                      <p className="font-semibold text-emerald-800">{importResult.created} matériel(s) importé(s)</p>
+                      {importResult.created != null && (
+                        <p className="font-semibold text-emerald-800">{importResult.created} matériel(s) créé(s)</p>
+                      )}
+                      {importResult.updated != null && (
+                        <p className="font-semibold text-emerald-800">{importResult.updated} matériel(s) mis à jour</p>
+                      )}
                       {importResult.errors.length > 0 && (
-                        <p className="text-xs text-emerald-600">{importResult.errors.length} ligne(s) ignorée(s)</p>
+                        <p className="text-xs text-emerald-600">{importResult.errors.length} ligne(s) avec erreur(s)</p>
                       )}
                     </div>
                   </div>
                   {importResult.errors.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1 max-h-36 overflow-y-auto">
-                      <p className="text-xs font-semibold text-amber-700 mb-1.5">Lignes ignorées :</p>
+                      <p className="text-xs font-semibold text-amber-700 mb-1.5">Erreurs :</p>
                       {importResult.errors.map((e, i) => (
                         <p key={i} className="text-xs text-amber-600">Ligne {e.ligne} — {e.message}</p>
                       ))}
                     </div>
                   )}
-                  <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); }}
+                  <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); setImportTab("create"); }}
                     className="w-full bg-camublue-900 hover:bg-camublue-900/90 text-white rounded-xl py-2.5 text-sm font-semibold transition">
                     Fermer
                   </button>
                 </div>
-              ) : (
+              ) : importTab === "create" ? (
                 <>
-                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition
                     ${importFile ? "border-camublue-900/40 bg-camublue-900/5" : "border-gray-200 hover:border-camublue-900/40 hover:bg-gray-50"}`}>
-                    <Upload size={22} className={importFile ? "text-camublue-900" : "text-gray-300"} />
+                    <Upload size={20} className={importFile ? "text-camublue-900" : "text-gray-300"} />
                     {importFile
                       ? <span className="text-sm font-semibold text-camublue-900">{importFile.name}</span>
                       : <span className="text-sm text-gray-400">Cliquer pour choisir un fichier .csv ou .xlsx</span>
                     }
                     <input type="file" accept=".csv,.xlsx" className="hidden"
-                      onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }} />
+                      onChange={e => { setImportFile(e.target.files?.[0] ?? null); }} />
                   </label>
                   <div className="text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
-                    <p className="font-semibold text-gray-600">Fichier .csv — colonnes attendues :</p>
+                    <p className="font-semibold text-gray-600">.csv — colonnes :</p>
                     <p className="font-mono">Type ; Marque ; Modèle ; N° Série ; Adresse MAC ; N° PO ; État ; Acquisition</p>
-                    <p className="font-semibold text-gray-600 pt-1">Fichier .xlsx « Suivi Parc » — toutes les colonnes sont récupérées :</p>
-                    <p className="font-mono">Matricule ; Nom ; Prenom ; Projet ; Nature ; Désignation Equipement ; Ref Carte Réseau ; N° Serie ; PO ; Date d'attribution ; Statut</p>
+                    <p className="font-semibold text-gray-600 pt-1">.xlsx « Suivi Parc » :</p>
+                    <p className="font-mono">Matricule ; Nom ; Prenom ; Nature ; Désignation ; N° Serie ; PO ; Statut…</p>
                   </div>
                   <div className="flex gap-3 pt-1">
-                    <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); }}
+                    <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); setImportTab("create"); }}
                       className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
                       Annuler
                     </button>
@@ -1779,6 +1800,54 @@ export function MaterielsContent() {
                       {importLoading
                         ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Import…</>
                         : "Importer"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-1">
+                    <p className="font-semibold">Comment ça marche :</p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-blue-600">
+                      <li>Exportez le parc en Excel (bouton <span className="font-semibold">Exporter</span>)</li>
+                      <li>Modifiez les colonnes souhaitées dans Excel</li>
+                      <li>Réimportez le fichier ici — les matériels sont mis à jour via la colonne ID</li>
+                    </ol>
+                    <p className="text-blue-500 pt-0.5">La colonne <span className="font-semibold">Assigné à</span> est ignorée (géré via les attributions).</p>
+                  </div>
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition
+                    ${importFile ? "border-camublue-900/40 bg-camublue-900/5" : "border-gray-200 hover:border-camublue-900/40 hover:bg-gray-50"}`}>
+                    <Upload size={20} className={importFile ? "text-camublue-900" : "text-gray-300"} />
+                    {importFile
+                      ? <span className="text-sm font-semibold text-camublue-900">{importFile.name}</span>
+                      : <span className="text-sm text-gray-400">Fichier Excel exporté (.xlsx)</span>
+                    }
+                    <input type="file" accept=".xlsx" className="hidden"
+                      onChange={e => { setImportFile(e.target.files?.[0] ?? null); }} />
+                  </label>
+                  <div className="flex gap-3 pt-1">
+                    <button onClick={() => { setImportOpen(false); setImportFile(null); setImportResult(null); setImportTab("create"); }}
+                      className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+                      Annuler
+                    </button>
+                    <button
+                      disabled={!importFile || importLoading}
+                      onClick={async () => {
+                        if (!importFile) return;
+                        setImportLoading(true);
+                        try {
+                          const res = await materielService.importUpdate(importFile);
+                          setImportResult(res);
+                          load();
+                        } catch (err: any) {
+                          toast.error(err?.response?.data?.detail ?? "Erreur lors de la mise à jour");
+                        } finally {
+                          setImportLoading(false);
+                        }
+                      }}
+                      className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                      {importLoading
+                        ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Mise à jour…</>
+                        : "Mettre à jour"}
                     </button>
                   </div>
                 </>

@@ -87,10 +87,10 @@ export interface NumeroSIM {
 }
 
 export interface DerniereFactureInfo {
-  mois:        number;
-  annee:       number;
-  operateur:   string | null;
-  montant_ttc: number | null;
+  mois:          number;
+  annee:         number;
+  operateur:     string | null;
+  solde_facture: number | null;
 }
 
 export interface SiteGSM {

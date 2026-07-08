@@ -371,8 +371,8 @@ export default function VehiculesPage() {
                 </td>
                 {/* Dernière facture */}
                 <td className="px-4 py-3 text-center">
-                  {v.derniere_facture?.montant_ttc != null
-                    ? <span className="font-semibold text-gray-700">{v.derniere_facture.montant_ttc.toLocaleString("fr-FR")}</span>
+                  {v.derniere_facture?.solde_facture != null
+                    ? <span className="font-semibold text-gray-700">{v.derniere_facture.solde_facture.toLocaleString("fr-FR")}</span>
                     : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3">
@@ -553,7 +553,7 @@ export default function VehiculesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-3">
                     <div><p className="text-xs text-emerald-600 uppercase tracking-wide font-semibold">Forfait</p><p className="text-sm font-bold text-emerald-800 mt-0.5">{detailVeh.forfait != null ? `${detailVeh.forfait.toLocaleString("fr-FR")} F` : "—"}</p></div>
-                    <div><p className="text-xs text-emerald-600 uppercase tracking-wide font-semibold">Dernière facture</p><p className="text-sm font-bold text-emerald-800 mt-0.5">{detailVeh.derniere_facture?.montant_ttc != null ? `${detailVeh.derniere_facture.montant_ttc.toLocaleString("fr-FR")} F (${MOIS_LABELS[detailVeh.derniere_facture.mois]} ${detailVeh.derniere_facture.annee})` : "—"}</p></div>
+                    <div><p className="text-xs text-emerald-600 uppercase tracking-wide font-semibold">Dernière facture</p><p className="text-sm font-bold text-emerald-800 mt-0.5">{detailVeh.derniere_facture?.solde_facture != null ? `${detailVeh.derniere_facture.solde_facture.toLocaleString("fr-FR")} F (${MOIS_LABELS[detailVeh.derniere_facture.mois]} ${detailVeh.derniere_facture.annee})` : "—"}</p></div>
                   </div>
                 </div>
               ) : (
