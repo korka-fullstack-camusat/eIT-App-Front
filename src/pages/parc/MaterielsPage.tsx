@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet, User } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet, User, FileText, CheckCircle2, Trash } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { materielService, attributionService, employeeService } from "@/services/api";
+import { materielService, attributionService, employeeService, templateService } from "@/services/api";
 import type { Materiel } from "@/types";
 
 const STATUT_COLORS: Record<string, string> = {
@@ -164,6 +164,47 @@ export function MaterielsContent() {
     { key: "assigne",     label: "Assigné à" },
   ] as const;
   type ColKey = (typeof ALL_COLS)[number]["key"];
+
+  // modal Template
+  const [templateOpen,      setTemplateOpen]      = useState(false);
+  const [templateInfo,      setTemplateInfo]      = useState<Record<string, { uploaded: boolean; size_kb?: number; placeholders: Array<{ raw: string; canonical: string }>; text?: string }>>({});
+  const [templateTab,       setTemplateTab]       = useState<"attestation" | "recuperation">("attestation");
+  const [templateFile,      setTemplateFile]      = useState<File | null>(null);
+  const [templateLoading,   setTemplateLoading]   = useState(false);
+
+  const loadTemplateInfo = useCallback(() => {
+    templateService.info().then(setTemplateInfo).catch(() => {});
+  }, []);
+
+  // modal Assignation en masse
+  const [bulkAssignOpen,    setBulkAssignOpen]    = useState(false);
+  const [bulkAssignEmpQuery,   setBulkAssignEmpQuery]   = useState("");
+  const [bulkAssignEmpResults, setBulkAssignEmpResults] = useState<any[]>([]);
+  const [bulkAssignEmpOpen,    setBulkAssignEmpOpen]    = useState(false);
+  const [bulkAssignEmpLoading, setBulkAssignEmpLoading] = useState(false);
+  const [bulkAssignForm, setBulkAssignForm] = useState<any>({
+    employee_id: "", employee_nom: "", employee_prenom: "",
+    employee_matricule: "", employee_service: "", employee_poste: "",
+    date_attribution: new Date().toISOString().split("T")[0],
+    etat_remise: "BON",
+  });
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
+  const bulkAssignTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // modal Récupération en masse
+  const [bulkRecupOpen,    setBulkRecupOpen]    = useState(false);
+  const [bulkRecupEmpQuery,   setBulkRecupEmpQuery]   = useState("");
+  const [bulkRecupEmpResults, setBulkRecupEmpResults] = useState<any[]>([]);
+  const [bulkRecupEmpOpen,    setBulkRecupEmpOpen]    = useState(false);
+  const [bulkRecupEmpLoading, setBulkRecupEmpLoading] = useState(false);
+  const [bulkRecupEmployee,   setBulkRecupEmployee]   = useState<any>(null);
+  const [bulkRecupAttrs,      setBulkRecupAttrs]      = useState<any[]>([]);
+  const [bulkRecupSelectedIds, setBulkRecupSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkRecupDate,   setBulkRecupDate]   = useState(new Date().toISOString().split("T")[0]);
+  const [bulkRecupMotif,  setBulkRecupMotif]  = useState("CHANGEMENT");
+  const [bulkRecupLoading, setBulkRecupLoading] = useState(false);
+  const bulkRecupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [exportOpen,      setExportOpen]      = useState(false);
   const [exportDateDebut, setExportDateDebut] = useState("");
@@ -488,6 +529,97 @@ export function MaterielsContent() {
     }
   };
 
+  // ── Bulk assign handlers ────────────────────────────────────────────────────
+  const searchBulkAssignEmp = (q: string) => {
+    if (bulkAssignTimer.current) clearTimeout(bulkAssignTimer.current);
+    if (!q.trim()) { setBulkAssignEmpResults([]); setBulkAssignEmpOpen(false); return; }
+    bulkAssignTimer.current = setTimeout(async () => {
+      setBulkAssignEmpLoading(true);
+      try {
+        const res = await employeeService.search(q);
+        setBulkAssignEmpResults(res.slice(0, 8));
+        setBulkAssignEmpOpen(true);
+      } catch { toast.error("Impossible de joindre l'API eRh"); }
+      finally { setBulkAssignEmpLoading(false); }
+    }, 350);
+  };
+
+  const selectBulkAssignEmp = (emp: any) => {
+    setBulkAssignForm((p: any) => ({
+      ...p,
+      employee_id: emp.id, employee_nom: emp.nom, employee_prenom: emp.prenom,
+      employee_matricule: emp.matricule, employee_service: emp.service ?? "", employee_poste: emp.fonction ?? "",
+    }));
+    setBulkAssignEmpQuery(`${emp.prenom} ${emp.nom}`);
+    setBulkAssignEmpOpen(false); setBulkAssignEmpResults([]);
+  };
+
+  const handleBulkAssign = async () => {
+    if (!bulkAssignForm.employee_id) { toast.error("Veuillez sélectionner un employé"); return; }
+    if (bulkSelectedIds.size === 0)  { toast.error("Sélectionnez au moins un matériel"); return; }
+    setBulkAssignLoading(true);
+    try {
+      await attributionService.bulkAssign({
+        ...bulkAssignForm,
+        materiel_ids: Array.from(bulkSelectedIds),
+      });
+      toast.success(`${bulkSelectedIds.size} matériel(s) assigné(s) — attestation téléchargée`);
+      setBulkAssignOpen(false);
+      setBulkSelectedIds(new Set());
+      setBulkAssignForm({ employee_id: "", employee_nom: "", employee_prenom: "", employee_matricule: "", employee_service: "", employee_poste: "", date_attribution: new Date().toISOString().split("T")[0], etat_remise: "BON" });
+      setBulkAssignEmpQuery("");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Erreur lors de l'assignation en masse");
+    } finally { setBulkAssignLoading(false); }
+  };
+
+  // ── Bulk recuperation handlers ───────────────────────────────────────────────
+  const searchBulkRecupEmp = (q: string) => {
+    if (bulkRecupTimer.current) clearTimeout(bulkRecupTimer.current);
+    if (!q.trim()) { setBulkRecupEmpResults([]); setBulkRecupEmpOpen(false); return; }
+    bulkRecupTimer.current = setTimeout(async () => {
+      setBulkRecupEmpLoading(true);
+      try {
+        const res = await employeeService.search(q);
+        setBulkRecupEmpResults(res.slice(0, 8));
+        setBulkRecupEmpOpen(true);
+      } catch { toast.error("Impossible de joindre l'API eRh"); }
+      finally { setBulkRecupEmpLoading(false); }
+    }, 350);
+  };
+
+  const selectBulkRecupEmp = async (emp: any) => {
+    setBulkRecupEmployee(emp);
+    setBulkRecupEmpQuery(`${emp.prenom} ${emp.nom}`);
+    setBulkRecupEmpOpen(false); setBulkRecupEmpResults([]);
+    try {
+      const attrs = await attributionService.getActiveByEmployee(emp.id);
+      setBulkRecupAttrs(attrs);
+      setBulkRecupSelectedIds(new Set(attrs.map((a: any) => a.id)));
+    } catch { toast.error("Impossible de charger les attributions"); }
+  };
+
+  const handleBulkRecuperation = async () => {
+    if (!bulkRecupEmployee)              { toast.error("Veuillez sélectionner un employé"); return; }
+    if (bulkRecupSelectedIds.size === 0) { toast.error("Sélectionnez au moins un matériel"); return; }
+    setBulkRecupLoading(true);
+    try {
+      await attributionService.bulkRecuperation({
+        attribution_ids:   Array.from(bulkRecupSelectedIds),
+        date_restitution:  bulkRecupDate,
+        motif_restitution: bulkRecupMotif,
+      });
+      toast.success(`${bulkRecupSelectedIds.size} matériel(s) récupéré(s) — attestation téléchargée`);
+      setBulkRecupOpen(false);
+      setBulkRecupEmployee(null); setBulkRecupAttrs([]); setBulkRecupSelectedIds(new Set());
+      setBulkRecupEmpQuery("");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Erreur lors de la récupération en masse");
+    } finally { setBulkRecupLoading(false); }
+  };
+
   const showMacField = TYPES_WITH_IP.includes(form.type_materiel);
 
   // ── Pagination ──────────────────────────────────────────────────────────────
@@ -530,7 +662,7 @@ export function MaterielsContent() {
               {loading ? "Chargement…" : `${items.length} équipement(s)`}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setExportOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
               <FileSpreadsheet size={15} />
@@ -543,6 +675,24 @@ export function MaterielsContent() {
               <FileSpreadsheet size={15} />
               <span>Importer</span>
               <span className="text-[10px] bg-emerald-200 rounded px-1 py-0.5 font-bold leading-none">.csv</span>
+            </button>
+            )}
+            {!isViewer && (
+            <button onClick={() => { setTemplateOpen(true); setTemplateFile(null); setTemplateTab("attestation"); loadTemplateInfo(); }}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <FileText size={15} /> Templates
+            </button>
+            )}
+            {!isViewer && (
+            <button onClick={() => { setBulkAssignOpen(true); setBulkSelectedIds(new Set()); setBulkAssignEmpQuery(""); setBulkAssignForm({ employee_id: "", employee_nom: "", employee_prenom: "", employee_matricule: "", employee_service: "", employee_poste: "", date_attribution: new Date().toISOString().split("T")[0], etat_remise: "BON" }); }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <User size={15} /> Assignation en masse
+            </button>
+            )}
+            {!isViewer && (
+            <button onClick={() => { setBulkRecupOpen(true); setBulkRecupEmployee(null); setBulkRecupAttrs([]); setBulkRecupSelectedIds(new Set()); setBulkRecupEmpQuery(""); setBulkRecupDate(new Date().toISOString().split("T")[0]); }}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-sm font-semibold transition shadow-sm">
+              <Download size={15} /> Récupération
             </button>
             )}
             {!isViewer && (
@@ -1849,6 +1999,404 @@ export function MaterielsContent() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL TEMPLATES
+      ══════════════════════════════════════════════════════════════════════ */}
+      {templateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Templates de documents</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Uploadez vos modèles Word (.docx) avec des balises <code className="bg-gray-100 px-1 rounded">{"{{CHAMP}}"}</code></p>
+              </div>
+              <button onClick={() => setTemplateOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition"><X size={18} /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-100 px-6">
+              {(["attestation", "recuperation"] as const).map(tab => (
+                <button key={tab} onClick={() => { setTemplateTab(tab); setTemplateFile(null); }}
+                  className={`py-3 px-4 text-sm font-semibold border-b-2 transition -mb-px ${templateTab === tab ? "border-violet-600 text-violet-700" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+                  {tab === "attestation" ? "Attestation d'assignation" : "Attestation de récupération"}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              {/* Statut template actuel */}
+              {templateInfo[templateTab]?.uploaded ? (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-800">Template actif</p>
+                      <p className="text-xs text-emerald-600">{templateInfo[templateTab]?.size_kb} Ko · {templateInfo[templateTab]?.placeholders.length} balise(s) détectée(s)</p>
+                    </div>
+                  </div>
+                  <button onClick={async () => {
+                    try {
+                      await templateService.delete(templateTab);
+                      toast.success("Template supprimé");
+                      loadTemplateInfo();
+                    } catch { toast.error("Impossible de supprimer"); }
+                  }} className="p-1.5 hover:bg-red-100 rounded-lg transition text-red-500">
+                    <Trash size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+                  Aucun template uploadé — le système utilise le PDF généré automatiquement.
+                </div>
+              )}
+
+              {/* Aperçu du document uploadé */}
+              {templateInfo[templateTab]?.text && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aperçu du template</p>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner">
+                    {templateInfo[templateTab].text!.split(/(\{\{[^}]{1,60}\}\})/g).map((part, i) =>
+                      /^\{\{[^}]{1,60}\}\}$/.test(part)
+                        ? <mark key={i} className="bg-violet-200 text-violet-800 rounded px-0.5 font-semibold not-italic">{part}</mark>
+                        : <span key={i}>{part}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Balises disponibles */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Balises disponibles</p>
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1 text-xs font-mono text-gray-600">
+                  {templateTab === "attestation" ? (
+                    <>
+                      <p><span className="text-violet-700 font-bold">{"{{NOM}}"}</span> — Nom de l'employé</p>
+                      <p><span className="text-violet-700 font-bold">{"{{PRENOM}}"}</span> — Prénom</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATRICULE}}"}</span> — Matricule</p>
+                      <p><span className="text-violet-700 font-bold">{"{{SERVICE}}"}</span> — Service / département</p>
+                      <p><span className="text-violet-700 font-bold">{"{{DATE_JOUR}}"}</span> — Date du jour (dd/mm/yyyy)</p>
+                      <p><span className="text-violet-700 font-bold">{"{{DATE_ATTRIBUTION}}"}</span> — Date de la première attribution</p>
+                      <p><span className="text-violet-700 font-bold">{"{{NB_MATERIELS}}"}</span> — Nombre de matériels</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATERIELS_LISTE}}"}</span> — Liste complète des matériels</p>
+                      <p className="mt-1 text-gray-400">Pour chaque matériel (N = 1, 2, 3…) :</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATERIEL_N}}"}</span> — Libellé complet (type + marque + identifiant)</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MARQUE_N}}"}</span> / <span className="text-violet-700 font-bold">{"{{MODELE_N}}"}</span> / <span className="text-violet-700 font-bold">{"{{TYPE_N}}"}</span></p>
+                      <p><span className="text-violet-700 font-bold">{"{{SERIE_N}}"}</span> — N° Série · <span className="text-violet-700 font-bold">{"{{MAC_N}}"}</span> — Adresse MAC</p>
+                    </>
+                  ) : (
+                    <>
+                      <p><span className="text-violet-700 font-bold">{"{{NOM}}"}</span> — Nom de l'employé</p>
+                      <p><span className="text-violet-700 font-bold">{"{{PRENOM}}"}</span> — Prénom</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATRICULE}}"}</span> — Matricule</p>
+                      <p><span className="text-violet-700 font-bold">{"{{SERVICE}}"}</span> — Service / département</p>
+                      <p><span className="text-violet-700 font-bold">{"{{DATE_JOUR}}"}</span> — Date du jour (dd/mm/yyyy)</p>
+                      <p><span className="text-violet-700 font-bold">{"{{DATE_RECUPERATION}}"}</span> — Date de récupération</p>
+                      <p><span className="text-violet-700 font-bold">{"{{NB_MATERIELS}}"}</span> — Nombre de matériels récupérés</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATERIELS_LISTE}}"}</span> — Liste complète des matériels</p>
+                      <p className="mt-1 text-gray-400">Pour chaque matériel (N = 1, 2, 3…) :</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MATERIEL_N}}"}</span> — Libellé complet</p>
+                      <p><span className="text-violet-700 font-bold">{"{{MARQUE_N}}"}</span> / <span className="text-violet-700 font-bold">{"{{MODELE_N}}"}</span> / <span className="text-violet-700 font-bold">{"{{TYPE_N}}"}</span></p>
+                      <p><span className="text-violet-700 font-bold">{"{{SERIE_N}}"}</span> — N° Série · <span className="text-violet-700 font-bold">{"{{MAC_N}}"}</span> — Adresse MAC</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Upload */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  {templateInfo[templateTab]?.uploaded ? "Remplacer le template" : "Uploader un template"}
+                </p>
+                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-violet-200 rounded-xl p-6 cursor-pointer hover:bg-violet-50 transition">
+                  <Upload size={20} className="text-violet-400" />
+                  <span className="text-sm text-gray-500">
+                    {templateFile ? <span className="font-semibold text-violet-700">{templateFile.name}</span> : "Cliquez ou glissez votre fichier .docx"}
+                  </span>
+                  <span className="text-xs text-gray-400">Format Word uniquement (.docx)</span>
+                  <input type="file" accept=".docx" className="hidden" onChange={e => setTemplateFile(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setTemplateOpen(false)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Fermer</button>
+              <button onClick={async () => {
+                if (!templateFile) { toast.error("Sélectionnez un fichier .docx"); return; }
+                setTemplateLoading(true);
+                try {
+                  const result = await templateService.upload(templateTab, templateFile);
+                  toast.success(`Template enregistré · ${result.placeholders?.length ?? 0} balise(s) détectée(s)`);
+                  setTemplateFile(null);
+                  loadTemplateInfo();
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.detail ?? "Erreur lors de l'upload");
+                } finally { setTemplateLoading(false); }
+              }} disabled={!templateFile || templateLoading}
+                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                {templateLoading
+                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Upload…</>
+                  : <><Upload size={15} /> Enregistrer le template</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL ASSIGNATION EN MASSE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {bulkAssignOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Assignation en masse</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Attribuez plusieurs matériels à un employé en une seule opération</p>
+              </div>
+              <button onClick={() => setBulkAssignOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition"><X size={18} /></button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+              {/* Employé */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Employé</label>
+                <div className="relative">
+                  <input value={bulkAssignEmpQuery}
+                    onChange={e => { setBulkAssignEmpQuery(e.target.value); searchBulkAssignEmp(e.target.value); }}
+                    placeholder="Rechercher un employé…"
+                    className="input-base pl-4 pr-10 w-full" />
+                  {bulkAssignEmpLoading && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />}
+                  {bulkAssignEmpOpen && bulkAssignEmpResults.length > 0 && (
+                    <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      {bulkAssignEmpResults.map(emp => (
+                        <button key={emp.id} onMouseDown={() => selectBulkAssignEmp(emp)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-camublue-900/5 text-left border-b border-gray-50 last:border-0">
+                          <div className="w-7 h-7 rounded-full bg-camublue-900/10 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-camublue-900">{emp.prenom?.charAt(0)}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{emp.prenom} {emp.nom}</p>
+                            <p className="text-xs text-gray-400">{emp.matricule}{emp.service ? ` · ${emp.service}` : ""}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {bulkAssignForm.employee_nom && (
+                  <div className="mt-2 flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="w-8 h-8 rounded-full bg-camublue-900/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-camublue-900">{bulkAssignForm.employee_prenom?.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{bulkAssignForm.employee_prenom} {bulkAssignForm.employee_nom}</p>
+                      <p className="text-xs text-gray-500">{bulkAssignForm.employee_matricule}{bulkAssignForm.employee_service ? ` · ${bulkAssignForm.employee_service}` : ""}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date d'attribution</label>
+                  <input type="date" value={bulkAssignForm.date_attribution}
+                    onChange={e => setBulkAssignForm((p: any) => ({ ...p, date_attribution: e.target.value }))}
+                    className="input-base w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">État de remise</label>
+                  <select value={bulkAssignForm.etat_remise}
+                    onChange={e => setBulkAssignForm((p: any) => ({ ...p, etat_remise: e.target.value }))}
+                    className="input-base w-full">
+                    <option value="NEUF">Neuf</option>
+                    <option value="BON">Bon état</option>
+                    <option value="USAGE">Usagé</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Sélection matériels */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Matériels disponibles
+                    {bulkSelectedIds.size > 0 && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">{bulkSelectedIds.size} sélectionné(s)</span>}
+                  </label>
+                  <button onClick={() => {
+                    const disponibles = items.filter(m => m.statut === "DISPONIBLE");
+                    if (bulkSelectedIds.size === disponibles.length) setBulkSelectedIds(new Set());
+                    else setBulkSelectedIds(new Set(disponibles.map(m => m.id)));
+                  }} className="text-xs text-blue-600 hover:underline font-medium">
+                    {bulkSelectedIds.size === items.filter(m => m.statut === "DISPONIBLE").length ? "Tout désélectionner" : "Tout sélectionner"}
+                  </button>
+                </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                  {items.filter(m => m.statut === "DISPONIBLE").length === 0 ? (
+                    <p className="text-center text-gray-400 text-sm py-8">Aucun matériel disponible</p>
+                  ) : items.filter(m => m.statut === "DISPONIBLE").map(m => (
+                    <label key={m.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition ${bulkSelectedIds.has(m.id) ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                      <input type="checkbox" checked={bulkSelectedIds.has(m.id)}
+                        onChange={() => setBulkSelectedIds(prev => {
+                          const s = new Set(prev);
+                          s.has(m.id) ? s.delete(m.id) : s.add(m.id);
+                          return s;
+                        })}
+                        className="accent-camublue-900 w-4 h-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{TYPE_LABELS[m.type_materiel] ?? m.type_materiel} — {m.marque} {m.modele}</p>
+                        <p className="text-xs text-gray-400 font-mono">{m.numero_serie || m.adresse_mac || m.reference || "—"}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setBulkAssignOpen(false)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Annuler</button>
+              <button onClick={handleBulkAssign} disabled={bulkAssignLoading || !bulkAssignForm.employee_id || bulkSelectedIds.size === 0}
+                className="flex-1 bg-camublue-900 hover:bg-camublue-900/90 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                {bulkAssignLoading
+                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Assignation…</>
+                  : <><Download size={15} /> Attribuer & télécharger attestation</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL RÉCUPÉRATION EN MASSE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {bulkRecupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Récupération en masse</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Récupérez plusieurs matériels d'un employé et générez l'attestation</p>
+              </div>
+              <button onClick={() => setBulkRecupOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition"><X size={18} /></button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+              {/* Employé */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Employé</label>
+                <div className="relative">
+                  <input value={bulkRecupEmpQuery}
+                    onChange={e => { setBulkRecupEmpQuery(e.target.value); searchBulkRecupEmp(e.target.value); }}
+                    placeholder="Rechercher un employé…"
+                    className="input-base pl-4 pr-10 w-full" />
+                  {bulkRecupEmpLoading && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-camublue-900/30 border-t-camublue-900 rounded-full animate-spin" />}
+                  {bulkRecupEmpOpen && bulkRecupEmpResults.length > 0 && (
+                    <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      {bulkRecupEmpResults.map(emp => (
+                        <button key={emp.id} onMouseDown={() => selectBulkRecupEmp(emp)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-camublue-900/5 text-left border-b border-gray-50 last:border-0">
+                          <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-amber-700">{emp.prenom?.charAt(0)}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{emp.prenom} {emp.nom}</p>
+                            <p className="text-xs text-gray-400">{emp.matricule}{emp.service ? ` · ${emp.service}` : ""}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {bulkRecupEmployee && (
+                  <div className="mt-2 flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-amber-700">{bulkRecupEmployee.prenom?.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{bulkRecupEmployee.prenom} {bulkRecupEmployee.nom}</p>
+                      <p className="text-xs text-gray-500">{bulkRecupEmployee.matricule}{bulkRecupEmployee.service ? ` · ${bulkRecupEmployee.service}` : ""}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Matériels attribués */}
+              {bulkRecupAttrs.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Matériels attribués
+                      {bulkRecupSelectedIds.size > 0 && <span className="ml-2 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold">{bulkRecupSelectedIds.size} sélectionné(s)</span>}
+                    </label>
+                    <button onClick={() => {
+                      if (bulkRecupSelectedIds.size === bulkRecupAttrs.length) setBulkRecupSelectedIds(new Set());
+                      else setBulkRecupSelectedIds(new Set(bulkRecupAttrs.map((a: any) => a.id)));
+                    }} className="text-xs text-amber-600 hover:underline font-medium">
+                      {bulkRecupSelectedIds.size === bulkRecupAttrs.length ? "Tout désélectionner" : "Tout sélectionner"}
+                    </button>
+                  </div>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    {bulkRecupAttrs.map((a: any) => (
+                      <label key={a.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition ${bulkRecupSelectedIds.has(a.id) ? "bg-amber-50" : "hover:bg-gray-50"}`}>
+                        <input type="checkbox" checked={bulkRecupSelectedIds.has(a.id)}
+                          onChange={() => setBulkRecupSelectedIds(prev => {
+                            const s = new Set(prev);
+                            s.has(a.id) ? s.delete(a.id) : s.add(a.id);
+                            return s;
+                          })}
+                          className="accent-amber-600 w-4 h-4 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {a.materiel ? `${TYPE_LABELS[a.materiel.type_materiel] ?? a.materiel.type_materiel} — ${a.materiel.marque} ${a.materiel.modele ?? ""}` : `Attribution #${a.id}`}
+                          </p>
+                          <p className="text-xs text-gray-400 font-mono">{a.materiel?.numero_serie || a.materiel?.adresse_mac || "—"}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bulkRecupEmployee && bulkRecupAttrs.length === 0 && (
+                <p className="text-center text-gray-400 text-sm py-4">Aucune attribution active pour cet employé</p>
+              )}
+
+              {/* Date & motif */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date de récupération</label>
+                  <input type="date" value={bulkRecupDate} onChange={e => setBulkRecupDate(e.target.value)} className="input-base w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Motif</label>
+                  <select value={bulkRecupMotif} onChange={e => setBulkRecupMotif(e.target.value)} className="input-base w-full">
+                    <option value="CHANGEMENT">Changement</option>
+                    <option value="DEPART">Départ</option>
+                    <option value="FIN_CONTRAT">Fin de contrat</option>
+                    <option value="PANNE">Panne</option>
+                    <option value="AUTRE">Autre</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setBulkRecupOpen(false)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Annuler</button>
+              <button onClick={handleBulkRecuperation} disabled={bulkRecupLoading || !bulkRecupEmployee || bulkRecupSelectedIds.size === 0}
+                className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2">
+                {bulkRecupLoading
+                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Récupération…</>
+                  : <><Download size={15} /> Récupérer & télécharger attestation</>}
+              </button>
             </div>
           </div>
         </div>

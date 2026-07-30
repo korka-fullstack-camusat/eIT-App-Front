@@ -100,6 +100,34 @@ export const attributionService = {
   stats:           ()           => ax.get("/attributions/stats/summary").then(r => r.data),
   dechargeUrl:     (id: number) => `${BASE}/templates/decharge/${id}`,
   attestationUrl:  (employeeId: number) => `${BASE}/templates/attestation/employee/${employeeId}`,
+  bulkAssign: async (payload: any) => {
+    const response = await ax.post("/attributions/bulk", payload, { responseType: "blob" });
+    const contentType = response.headers["content-type"] || "application/pdf";
+    const isDocx = contentType.includes("wordprocessingml");
+    const ext  = isDocx ? "docx" : "pdf";
+    const blob = new Blob([response.data], { type: contentType });
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href  = url;
+    link.setAttribute("download", `attestation_assignation.${ext}`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
+  },
+  bulkRecuperation: async (payload: any) => {
+    const response = await ax.post("/attributions/bulk-recuperation", payload, { responseType: "blob" });
+    const contentType = response.headers["content-type"] || "application/pdf";
+    const isDocx = contentType.includes("wordprocessingml");
+    const ext  = isDocx ? "docx" : "pdf";
+    const blob = new Blob([response.data], { type: contentType });
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href  = url;
+    link.setAttribute("download", `attestation_recuperation.${ext}`);
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
+  },
+  getActiveByEmployee: (employeeId: number) =>
+    ax.get<any[]>("/attributions/", { params: { employee_id: employeeId, statut: "ACTIVE" } }).then(r => r.data),
   exportExcel: async (params?: { date_debut?: string; date_fin?: string; statut?: string; service?: string; search?: string; cols?: string }) => {
     const q = new URLSearchParams();
     if (params?.date_debut) q.set("date_debut", params.date_debut);
@@ -413,23 +441,25 @@ export const factureService = {
 
 // ── Templates Word ────────────────────────────────────────────────────────────
 export const templateService = {
-  getInfo: () => ax.get<Record<string, {
-    uploaded: boolean; size_kb?: number; placeholders: string[];
+  info: () => ax.get<Record<string, {
+    uploaded: boolean; size_kb?: number;
+    placeholders: Array<{ raw: string; canonical: string }>;
+    text?: string;
   }>>("/templates/info").then(r => r.data),
 
-  upload: async (docType: "attestation" | "decharge", file: File) => {
+  upload: async (type: "attestation" | "recuperation" | "decharge", file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return ax.post<{ message: string; filename: string; placeholders: string[] }>(
-      `/templates/${docType}/upload`, form,
+    return ax.post<{ message: string; filename: string; placeholders: Array<{ raw: string; canonical: string }> }>(
+      `/templates/${type}/upload`, form,
       { headers: { "Content-Type": "multipart/form-data" } }
     ).then(r => r.data);
   },
 
-  delete: (docType: "attestation" | "decharge") =>
-    ax.delete(`/templates/${docType}`).then(r => r.data),
+  delete: (type: "attestation" | "recuperation" | "decharge") =>
+    ax.delete(`/templates/${type}`).then(r => r.data),
 
-  attestationUrl:  (employeeId: number)   => `${BASE}/templates/attestation/employee/${employeeId}`,
+  attestationUrl:  (employeeId: number)    => `${BASE}/templates/attestation/employee/${employeeId}`,
   dechargeUrl:     (attributionId: number) => `${BASE}/templates/decharge/${attributionId}`,
 };
 
