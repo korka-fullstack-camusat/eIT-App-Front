@@ -696,16 +696,16 @@ export function MaterielsContent() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
-              {["Type","Marque / Modèle","N° Série / MAC","Référence","Projet","État","Statut","Assigné à","Actions"].map(h => (
+              {["Type","Marque / Modèle","N° Série / MAC","Référence","État","Statut","Assigné à","Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={9} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
             ) : paginated.map(m => (
               <tr key={m.id} onClick={() => setDetailItem(m)}
                 className="hover:bg-gray-50/50 transition cursor-pointer">
@@ -723,9 +723,6 @@ export function MaterielsContent() {
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">
                   {m.reference || <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-600">
-                  {m.projet ? <span className="px-2 py-0.5 bg-camublue-900/5 text-camublue-900 rounded-lg font-semibold">{m.projet}</span> : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-600">{m.etat}</td>
                 <td className="px-4 py-3">
