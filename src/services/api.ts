@@ -5,7 +5,7 @@ import type {
 } from "../types";
 
 const BASE = "/api";
-const ax = axios.create({ baseURL: BASE });
+export const ax = axios.create({ baseURL: BASE });
 
 // Attache automatiquement le token JWT à chaque requête
 ax.interceptors.request.use(config => {
@@ -102,7 +102,7 @@ export const attributionService = {
   attestationUrl:  (employeeId: number) => `${BASE}/templates/attestation/employee/${employeeId}`,
   bulkAssign: async (payload: any) => {
     const response = await ax.post("/attributions/bulk", payload, { responseType: "blob" });
-    const contentType = response.headers["content-type"] || "application/pdf";
+    const contentType = String(response.headers["content-type"] || "application/pdf");
     const isDocx = contentType.includes("wordprocessingml");
     const ext  = isDocx ? "docx" : "pdf";
     const blob = new Blob([response.data], { type: contentType });
@@ -115,7 +115,7 @@ export const attributionService = {
   },
   bulkRecuperation: async (payload: any) => {
     const response = await ax.post("/attributions/bulk-recuperation", payload, { responseType: "blob" });
-    const contentType = response.headers["content-type"] || "application/pdf";
+    const contentType = String(response.headers["content-type"] || "application/pdf");
     const isDocx = contentType.includes("wordprocessingml");
     const ext  = isDocx ? "docx" : "pdf";
     const blob = new Blob([response.data], { type: contentType });
@@ -461,6 +461,25 @@ export const templateService = {
 
   attestationUrl:  (employeeId: number)    => `${BASE}/templates/attestation/employee/${employeeId}`,
   dechargeUrl:     (attributionId: number) => `${BASE}/templates/decharge/${attributionId}`,
+};
+
+// ── Planning ──────────────────────────────────────────────────────────────────
+export const planningService = {
+  list:   (params?: { date_debut?: string; date_fin?: string; statut?: string; responsable?: string }) =>
+    ax.get<any[]>("/planning/", { params }).then(r => r.data),
+  create: (data: any) => ax.post<any>("/planning/", data).then(r => r.data),
+  update: (id: number, data: any) => ax.patch<any>(`/planning/${id}`, data).then(r => r.data),
+  delete: (id: number) => ax.delete(`/planning/${id}`),
+};
+
+// ── Licences ──────────────────────────────────────────────────────────────────
+export const licenceService = {
+  list:             (search?: string) => ax.get<any[]>("/licences/", { params: search ? { search } : {} }).then(r => r.data),
+  create:           (data: any)       => ax.post<any>("/licences/", data).then(r => r.data),
+  update:           (id: number, data: any) => ax.patch<any>(`/licences/${id}`, data).then(r => r.data),
+  delete:           (id: number)      => ax.delete(`/licences/${id}`),
+  addAttribution:   (licenceId: number, data: any) => ax.post<any>(`/licences/${licenceId}/attributions`, data).then(r => r.data),
+  removeAttribution:(licenceId: number, attrId: number) => ax.delete(`/licences/${licenceId}/attributions/${attrId}`),
 };
 
 // ── Export Global ─────────────────────────────────────────────────────────────

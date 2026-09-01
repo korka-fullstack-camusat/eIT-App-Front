@@ -11,6 +11,10 @@ import FactureDetailPage from "@/pages/telephonie/FactureDetailPage";
 import ImportGlobalPage  from "@/pages/telephonie/ImportGlobalPage";
 import ExportGlobalPage  from "@/pages/ExportGlobalPage";
 import UsersPage      from "@/pages/UsersPage";
+import PlanningPage   from "@/pages/PlanningPage";
+import LicencesPage        from "@/pages/LicencesPage";
+import SuiviEmployesPage   from "@/pages/SuiviEmployesPage";
+import ProjetPage          from "@/pages/ProjetPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function App() {
@@ -33,6 +37,10 @@ export default function App() {
       <Route path="/import-global" element={<ProtectedRoute><ImportGlobalPage /></ProtectedRoute>} />
       <Route path="/export-global" element={<ProtectedRoute><ExportGlobalPage /></ProtectedRoute>} />
       <Route path="/users"       element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+      <Route path="/planning"    element={<ProtectedRoute><PlanningPage /></ProtectedRoute>} />
+      <Route path="/licences"        element={<ProtectedRoute><LicencesPage /></ProtectedRoute>} />
+      <Route path="/suivi-employes" element={<ProtectedRoute><SuiviEmployesPage /></ProtectedRoute>} />
+      <Route path="/projets"        element={<ProtectedRoute><ProjetPage /></ProtectedRoute>} />
 
       {/* Redirection fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

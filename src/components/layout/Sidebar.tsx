@@ -12,6 +12,10 @@ import {
   User,
   Upload,
   Download,
+  CalendarDays,
+  KeyRound,
+  UserCheck,
+  FolderKanban,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +33,10 @@ const navItems: NavItem[] = [
   { label: "Import global",    path: "/import-global", icon: <Upload size={20} /> },
   { label: "Export global",   path: "/export-global", icon: <Download size={20} /> },
   { label: "Parc Informatique", path: "/parc",         icon: <Monitor size={20} /> },
+  { label: "Gestion planning",   path: "/planning",     icon: <CalendarDays size={20} /> },
+  { label: "Suivis Licences",   path: "/licences",     icon: <KeyRound size={20} /> },
+  { label: "Suivi employés",    path: "/suivi-employes", icon: <UserCheck size={20} /> },
+  { label: "Suivi des projets", path: "/projets",        icon: <FolderKanban size={20} /> },
   {
     label: "Téléphonie",
     path: "/telephonie",
