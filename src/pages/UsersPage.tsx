@@ -11,19 +11,21 @@ interface UserAccount {
   full_name: string | null;
   email:     string | null;
   is_active: boolean;
-  role:      "ADMIN" | "EDITOR" | "VIEWER";
+  role:      "ADMIN" | "EDITOR" | "VIEWER" | "DIRECTEUR";
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN:  "Administrateur",
-  EDITOR: "Éditeur",
-  VIEWER: "Lecture seule",
+  ADMIN:      "Administrateur",
+  EDITOR:     "Éditeur",
+  VIEWER:     "Lecture seule",
+  DIRECTEUR:  "Directeur",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN:  "bg-purple-50 text-purple-700",
-  EDITOR: "bg-blue-50 text-blue-700",
-  VIEWER: "bg-gray-100 text-gray-600",
+  ADMIN:      "bg-purple-50 text-purple-700",
+  EDITOR:     "bg-blue-50 text-blue-700",
+  VIEWER:     "bg-gray-100 text-gray-600",
+  DIRECTEUR:  "bg-amber-50 text-amber-700",
 };
 
 export default function UsersPage() {
@@ -294,6 +296,7 @@ export default function UsersPage() {
                 <select value={role} onChange={e => setRole(e.target.value)} className="input-base">
                   <option value="EDITOR">Éditeur — accès complet</option>
                   <option value="VIEWER">Lecture seule — visualisation uniquement</option>
+                  <option value="DIRECTEUR">Directeur — lecture + validation des demandes</option>
                   <option value="ADMIN">Administrateur — gestion des comptes</option>
                 </select>
               </div>
@@ -370,6 +373,7 @@ export default function UsersPage() {
                 <select value={gererRole} onChange={e => setGererRole(e.target.value)} className="input-base">
                   <option value="EDITOR">Éditeur — accès complet</option>
                   <option value="VIEWER">Lecture seule — visualisation uniquement</option>
+                  <option value="DIRECTEUR">Directeur — lecture + validation des demandes</option>
                   <option value="ADMIN">Administrateur — gestion des comptes</option>
                 </select>
                 <p className="text-xs text-gray-400 mt-1">

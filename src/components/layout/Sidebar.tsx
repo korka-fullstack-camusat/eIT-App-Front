@@ -16,6 +16,7 @@ import {
   KeyRound,
   UserCheck,
   FolderKanban,
+  Lightbulb,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,7 +37,8 @@ const navItems: NavItem[] = [
   { label: "Gestion planning",   path: "/planning",     icon: <CalendarDays size={20} /> },
   { label: "Suivis Licences",   path: "/licences",     icon: <KeyRound size={20} /> },
   { label: "Suivi employés",    path: "/suivi-employes", icon: <UserCheck size={20} /> },
-  { label: "Suivi des projets", path: "/projets",        icon: <FolderKanban size={20} /> },
+  { label: "Suivi des projets",      path: "/projets",   icon: <FolderKanban size={20} /> },
+  { label: "Demandes d'amélioration", path: "/demandes", icon: <Lightbulb size={20} /> },
   {
     label: "Téléphonie",
     path: "/telephonie",

@@ -615,6 +615,13 @@ export default function DashboardPage() {
           value: Math.round(p.sims + p.veh + p.rms),
         }));
 
+        // Totaux par catégorie pour le donut
+        const donutSlices = [
+          { label: "SIM Employés",   value: Math.round(coutSimsTotal), color: "#1e3a5f" },
+          { label: "Véhicules M2M",  value: Math.round(coutVehTotal),  color: "#3b82f6" },
+          { label: "Sites RMS",      value: Math.round(coutRmsTotal),  color: "#93c5fd" },
+        ];
+
         return (
           <>
             {/* ── Bandeau date ── */}
@@ -701,8 +708,26 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-gray-400 mb-3">Toutes catégories : SIM Employés + Véhicules M2M + Sites RMS (FCFA)</p>
-                {evolBars.length > 0 ? (
-                  <VerticalBarChart data={evolBars} colorHex="#1e3a5f" />
+                {totalTel > 0 ? (
+                  <div className="flex items-center justify-center gap-6 py-2 flex-wrap">
+                    <DonutChart segments={donutSlices} total={totalTel} />
+                    <div className="flex flex-col gap-2.5">
+                      {donutSlices.map((s, i) => {
+                        const fmt = (v: number) => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `${Math.round(v/1_000)}k` : v.toLocaleString("fr-FR");
+                        return (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color }} />
+                            <div>
+                              <p className="text-xs font-semibold text-gray-700">{s.label}</p>
+                              <p className="text-[10px] text-gray-400">{fmt(s.value)} FCFA
+                                {totalTel > 0 && <span className="ml-1 text-gray-300">· {((s.value/totalTel)*100).toFixed(1)}%</span>}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-10 text-gray-300">
                     <BarChart2 size={32} />

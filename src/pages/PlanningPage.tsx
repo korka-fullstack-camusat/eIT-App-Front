@@ -296,7 +296,7 @@ export default function PlanningPage() {
       {/* ── Onglet Tâches ── */}
       {tab === "taches" && (loading ? (
         <div className="text-center py-20 text-gray-400">Chargement…</div>
-      ) : sorted.length === 0 ? (
+      ) : sorted.length === 0 && checklists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-gray-400">
           <Calendar size={48} className="mb-3 opacity-20" />
           <p className="font-medium">Aucune tâche{filterDate ? ` pour le ${fmt(filterDate)}` : ""}</p>

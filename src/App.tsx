@@ -15,6 +15,7 @@ import PlanningPage   from "@/pages/PlanningPage";
 import LicencesPage        from "@/pages/LicencesPage";
 import SuiviEmployesPage   from "@/pages/SuiviEmployesPage";
 import ProjetPage          from "@/pages/ProjetPage";
+import DemandesPage        from "@/pages/DemandesPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/licences"        element={<ProtectedRoute><LicencesPage /></ProtectedRoute>} />
       <Route path="/suivi-employes" element={<ProtectedRoute><SuiviEmployesPage /></ProtectedRoute>} />
       <Route path="/projets"        element={<ProtectedRoute><ProjetPage /></ProtectedRoute>} />
+      <Route path="/demandes"       element={<ProtectedRoute><DemandesPage /></ProtectedRoute>} />
 
       {/* Redirection fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
