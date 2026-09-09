@@ -258,6 +258,11 @@ export const simService = {
       mois: number; annee: number; total: number; nombre_numeros: number;
       ecart: number | null; ecart_pct: number | null;
     }[]>("/telephonie/sims/stats/evolution", { params: { categorie } }).then(r => r.data),
+  statsMensuelDetail: (mois: number, annee: number, categorie?: string) =>
+    ax.get<{
+      mois: number; annee: number; total_count: number; total_montant: number;
+      par_statut: Record<string, { count: number; montant: number }>;
+    }>("/telephonie/sims/stats/mensuel-detail", { params: { mois, annee, categorie } }).then(r => r.data),
 };
 
 export const siteService = {

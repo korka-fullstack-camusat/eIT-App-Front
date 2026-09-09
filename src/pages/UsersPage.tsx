@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import api from "@/api/axios";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserPlus, X, Eye, EyeOff, Search, CheckCircle2, XCircle, User, ShieldAlert, Settings2 } from "lucide-react";
+import { UserPlus, X, Eye, EyeOff, Search, CheckCircle2, XCircle, User, ShieldAlert, Settings2, Trash2, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface UserAccount {
@@ -34,12 +34,22 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [gererUser, setGererUser] = useState<UserAccount | null>(null);
-  const [gererRole, setGererRole] = useState<string>("EDITOR");
-  const [gererActive, setGererActive] = useState(true);
-  const [gererSaving, setGererSaving] = useState(false);
 
-  // Formulaire
+  // État modal édition
+  const [gererUser,     setGererUser]     = useState<UserAccount | null>(null);
+  const [gererRole,     setGererRole]     = useState<string>("EDITOR");
+  const [gererActive,   setGererActive]   = useState(true);
+  const [gererFullName, setGererFullName] = useState("");
+  const [gererEmail,    setGererEmail]    = useState("");
+  const [gererPassword, setGererPassword] = useState("");
+  const [gererShowPwd,  setGererShowPwd]  = useState(false);
+  const [gererSaving,   setGererSaving]   = useState(false);
+
+  // État suppression
+  const [deleteTarget,  setDeleteTarget]  = useState<UserAccount | null>(null);
+  const [deleting,      setDeleting]      = useState(false);
+
+  // Formulaire création
   const [username,  setUsername]  = useState("");
   const [fullName,  setFullName]  = useState("");
   const [email,     setEmail]     = useState("");
@@ -98,15 +108,26 @@ export default function UsersPage() {
     setGererUser(u);
     setGererRole(u.role ?? "EDITOR");
     setGererActive(u.is_active);
+    setGererFullName(u.full_name ?? "");
+    setGererEmail(u.email ?? "");
+    setGererPassword("");
+    setGererShowPwd(false);
   };
 
   const handleGererSave = async () => {
     if (!gererUser) return;
+    if (gererPassword && gererPassword.length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
     setGererSaving(true);
     try {
       await api.patch(`/api/auth/users/${gererUser.id}`, {
-        role: gererRole,
+        role:      gererRole,
         is_active: gererActive,
+        full_name: gererFullName || null,
+        email:     gererEmail    || null,
+        ...(gererPassword ? { password: gererPassword } : {}),
       });
       toast.success("Compte mis à jour");
       setGererUser(null);
@@ -115,6 +136,22 @@ export default function UsersPage() {
       toast.error(err?.response?.data?.detail ?? "Erreur lors de la mise à jour.");
     } finally {
       setGererSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/auth/users/${deleteTarget.id}`);
+      toast.success(`Compte "${deleteTarget.username}" supprimé`);
+      setDeleteTarget(null);
+      setGererUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail ?? "Erreur lors de la suppression.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -221,12 +258,22 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => openGerer(u)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition"
-                      >
-                        <Settings2 size={13} /> Gérer
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openGerer(u)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition"
+                        >
+                          <Settings2 size={13} /> Modifier
+                        </button>
+                        {u.id !== currentUser?.id && (
+                          <button
+                            onClick={() => setDeleteTarget(u)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -350,14 +397,14 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* ── Modal Gérer ─────────────────────────────────────────────────── */}
+      {/* ── Modal Modifier ──────────────────────────────────────────────── */}
       {gererUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setGererUser(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
-                <h3 className="text-lg font-bold text-camublue-900">Gérer le compte</h3>
-                <p className="text-xs text-gray-400 mt-0.5">{gererUser.full_name ?? gererUser.username}</p>
+                <h3 className="text-lg font-bold text-camublue-900">Modifier le compte</h3>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{gererUser.username}</p>
               </div>
               <button
                 onClick={() => setGererUser(null)}
@@ -368,6 +415,29 @@ export default function UsersPage() {
             </div>
 
             <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nom complet</label>
+                  <input
+                    type="text"
+                    value={gererFullName}
+                    onChange={e => setGererFullName(e.target.value)}
+                    placeholder="Jean Dupont"
+                    className="input-base"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={gererEmail}
+                    onChange={e => setGererEmail(e.target.value)}
+                    placeholder="email@camusat.com"
+                    className="input-base"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Rôle</label>
                 <select value={gererRole} onChange={e => setGererRole(e.target.value)} className="input-base">
@@ -376,9 +446,25 @@ export default function UsersPage() {
                   <option value="DIRECTEUR">Directeur — lecture + validation des demandes</option>
                   <option value="ADMIN">Administrateur — gestion des comptes</option>
                 </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  "Lecture seule" permet de consulter toutes les pages sans pouvoir ajouter, modifier, importer ou supprimer.
-                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Nouveau mot de passe <span className="text-gray-400 font-normal">(laisser vide pour ne pas changer)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={gererShowPwd ? "text" : "password"}
+                    value={gererPassword}
+                    onChange={e => setGererPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="input-base pr-10"
+                  />
+                  <button type="button" onClick={() => setGererShowPwd(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                    {gererShowPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
 
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -391,22 +477,70 @@ export default function UsersPage() {
                 <span className="text-sm text-gray-700">Compte actif</span>
               </label>
 
-              <div className="flex justify-end gap-3 pt-1">
+              <div className="flex items-center justify-between gap-3 pt-1">
+                {gererUser.id !== currentUser?.id && (
+                  <button
+                    type="button"
+                    onClick={() => { setDeleteTarget(gererUser); setGererUser(null); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold transition"
+                  >
+                    <Trash2 size={15} /> Supprimer
+                  </button>
+                )}
+                <div className="flex gap-3 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setGererUser(null)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-sm font-medium"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gererSaving}
+                    onClick={handleGererSave}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-camublue-900 hover:bg-camublue-900/90 text-white text-sm font-semibold transition shadow-sm disabled:opacity-60"
+                  >
+                    <Settings2 size={15} />
+                    {gererSaving ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal confirmation suppression ──────────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+                <AlertTriangle size={22} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-800">Supprimer ce compte ?</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Le compte <span className="font-semibold text-gray-700">"{deleteTarget.username}"</span> sera supprimé définitivement. Cette action est irréversible.
+                </p>
+              </div>
+              <div className="flex gap-3 justify-center pt-1">
                 <button
                   type="button"
-                  onClick={() => setGererUser(null)}
-                  className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-sm font-medium"
+                  onClick={() => setDeleteTarget(null)}
+                  className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-sm font-medium"
                 >
                   Annuler
                 </button>
                 <button
                   type="button"
-                  disabled={gererSaving}
-                  onClick={handleGererSave}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-camublue-900 hover:bg-camublue-900/90 text-white text-sm font-semibold transition shadow-sm disabled:opacity-60"
+                  disabled={deleting}
+                  onClick={handleDelete}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition shadow-sm disabled:opacity-60"
                 >
-                  <Settings2 size={15} />
-                  {gererSaving ? "Enregistrement…" : "Enregistrer"}
+                  <Trash2 size={15} />
+                  {deleting ? "Suppression…" : "Supprimer"}
                 </button>
               </div>
             </div>

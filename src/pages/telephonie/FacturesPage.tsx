@@ -24,6 +24,8 @@ export default function FacturesPage() {
   const [factures,     setFactures]     = useState<FactureTelecom[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [filterAnnee,  setFilterAnnee]  = useState(new Date().getFullYear());
+  const [filterMois,   setFilterMois]   = useState(0); // 0 = tous
+  const [mensuelStats, setMensuelStats] = useState<Record<string, Record<string, number>>>({});
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -50,7 +52,12 @@ export default function FacturesPage() {
       .then(setFactures).catch(() => toast.error("Erreur")).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); setPage(1); }, [filterAnnee]);
+  useEffect(() => { load(); setPage(1); setFilterMois(0); }, [filterAnnee]);
+
+  useEffect(() => {
+    factureService.statsMensuel(filterAnnee)
+      .then(setMensuelStats).catch(() => {});
+  }, [filterAnnee]);
 
   const openImportModal = () => {
     setImportForm(EMPTY_FORM());
@@ -95,7 +102,9 @@ export default function FacturesPage() {
 
   // Recherche : mois, opérateur, fichier, référence, n° compte
   const search = factureSearch.trim().toLowerCase();
-  const filteredFactures = !search ? factures : factures.filter(f => {
+  const filteredFactures = factures.filter(f => {
+    if (filterMois > 0 && f.mois !== filterMois) return false;
+    if (!search) return true;
     const haystack = [
       MOIS_LABELS[f.mois], String(f.annee), f.operateur, f.nom_fichier,
       f.reference_facture, f.numero_compte,
@@ -133,7 +142,7 @@ export default function FacturesPage() {
               {factures.length > 0 && <> · Total <span className="font-semibold">{totalMontant.toLocaleString("fr-FR")} FCFA</span></>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <select value={filterAnnee} onChange={e => setFilterAnnee(Number(e.target.value))}
               className="input-base w-auto px-3 py-2">
               {years.map(y => <option key={y} value={y}>{y}</option>)}
@@ -166,8 +175,8 @@ export default function FacturesPage() {
 
         {/* ── Statistiques globales ── */}
         {!loading && factures.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
               <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
                 <Receipt size={18} className="text-camublue-900" />
               </div>
@@ -176,7 +185,7 @@ export default function FacturesPage() {
                 <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Factures</p>
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
               <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
                 <Wallet size={18} className="text-camublue-900" />
               </div>
@@ -185,7 +194,7 @@ export default function FacturesPage() {
                 <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">Total {filterAnnee}</p>
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
               <div className="w-12 h-12 rounded-xl bg-camublue-900/10 flex items-center justify-center shrink-0">
                 <BarChart3 size={18} className="text-camublue-900" />
               </div>
@@ -195,7 +204,7 @@ export default function FacturesPage() {
               </div>
             </div>
             {maxFacture && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
                 <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
                   <TrendingUp size={18} className="text-red-500" />
                 </div>
@@ -206,7 +215,7 @@ export default function FacturesPage() {
               </div>
             )}
             {minFacture && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                   <TrendingDown size={18} className="text-emerald-500" />
                 </div>
@@ -217,7 +226,7 @@ export default function FacturesPage() {
               </div>
             )}
             {dernierEcartVal != null && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
+              <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-card p-4 flex flex-col items-center text-center gap-2">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
                   dernierEcartVal > 0 ? "bg-red-50" : dernierEcartVal < 0 ? "bg-emerald-50" : "bg-gray-100"
                 }`}>
