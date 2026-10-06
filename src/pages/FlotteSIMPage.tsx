@@ -47,39 +47,24 @@ const KPI_CFG: {
 
 const COLUMNS: Record<Exclude<Tab, "alertes">, { key: string; label: string }[]> = {
   mobiles: [
-    { key: "matricule",       label: "Matricule" },
-    { key: "beneficiaire",    label: "Bénéficiaire" },
-    { key: "service",         label: "Service" },
-    { key: "business_line",   label: "BL" },
-    { key: "fonction",        label: "Fonction" },
     { key: "numero_ligne",    label: "N° Ligne" },
-    { key: "formule",         label: "Formule" },
     { key: "engagement",      label: "Engagement (mois)" },
     { key: "date_activation", label: "Date d'activation" },
-    { key: "forfait_internet", label: "Forfait internet" },
   ],
   gps: [
-    { key: "numero_sim",      label: "N° SIM" },
-    { key: "immatriculation", label: "Immatriculation" },
-    { key: "modele",          label: "Modèle" },
-    { key: "imei",            label: "IMEI" },
+    { key: "numero_sim",      label: "N° Ligne" },
     { key: "engagement",      label: "Engagement (mois)" },
     { key: "date_activation", label: "Date d'activation" },
-    { key: "facturation",     label: "Facturation" },
   ],
   "rms-orange": [
-    { key: "numero",          label: "Numéro" },
-    { key: "imsi",            label: "IMSI" },
-    { key: "site_id",         label: "ID Site" },
-    { key: "nom_site",        label: "Nom Site" },
+    { key: "numero",          label: "N° Ligne" },
     { key: "engagement",      label: "Engagement (mois)" },
     { key: "date_activation", label: "Date d'activation" },
   ],
   "rms-free": [
-    { key: "numero",   label: "Numéro" },
-    { key: "imsi",     label: "IMSI" },
-    { key: "site_id",  label: "ID Site" },
-    { key: "nom_site", label: "Nom Site" },
+    { key: "numero",          label: "N° Ligne" },
+    { key: "engagement",      label: "Engagement (mois)" },
+    { key: "date_activation", label: "Date d'activation" },
   ],
 };
 
