@@ -374,8 +374,11 @@ function AlertesPanel({ alertes, seuil }: { alertes: any[]; seuil?: string }) {
       {a.beneficiaire && <p className="text-xs text-gray-600">{a.beneficiaire}{a.matricule ? ` — ${a.matricule}` : ""}</p>}
       {a.immatriculation && <p className="text-xs text-gray-600">Véhicule : {a.immatriculation} {a.modele ? `(${a.modele})` : ""}</p>}
       {a.nom_site && <p className="text-xs text-gray-600">Site : {a.site_id} — {a.nom_site}</p>}
-      <div className="flex gap-3 text-xs text-gray-500 mt-1">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mt-1">
         <span>Activation : {fmt(a.date_activation)}</span>
+        {a.date_renouvellement && (
+          <span className="text-blue-600 font-medium">Renouvellement : {fmt(a.date_renouvellement)}</span>
+        )}
         <span>Engagement : {a.engagement ?? "—"} mois</span>
       </div>
     </div>
