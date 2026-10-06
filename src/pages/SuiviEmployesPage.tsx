@@ -104,7 +104,7 @@ function EmployeDrawer({ emp, onClose }: { emp: any; onClose: () => void }) {
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-[#1F3864]">
-                          {["Type", "Matériel", "N° Série", "Depuis"].map(h => (
+                          {["Type", "Matériel", "N° Série / Référence", "Depuis"].map(h => (
                             <th key={h} className="px-3 py-2 text-xs font-bold text-white text-center border-r border-[#2e4d8a] whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -114,7 +114,13 @@ function EmployeDrawer({ emp, onClose }: { emp: any; onClose: () => void }) {
                           <tr key={a.id} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-emerald-50/30"}`}>
                             <td className="px-3 py-2.5 text-center border border-gray-100 text-sm">{TYPE_ICONS[a.type] ?? "📦"} {TYPE_LABELS[a.type] ?? a.type}</td>
                             <td className="px-3 py-2.5 border border-gray-100 font-medium text-gray-800">{a.marque} {a.modele}</td>
-                            <td className="px-3 py-2.5 text-center border border-gray-100 font-mono text-gray-500 text-xs">{a.numero_serie || "—"}</td>
+                            <td className="px-3 py-2.5 text-center border border-gray-100 font-mono text-xs">
+                              {a.numero_serie
+                                ? <span className="text-gray-700">{a.numero_serie}</span>
+                                : a.reference
+                                ? <span className="text-blue-600">{a.reference}</span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
                             <td className="px-3 py-2.5 text-center border border-gray-100 text-gray-600">{fmt(a.date_attribution)}</td>
                           </tr>
                         ))}
