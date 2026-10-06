@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Plus, Search, Pencil, Trash2, X, Download, Upload, ChevronLeft, ChevronRight, History, Filter, AlertTriangle, FileSpreadsheet, User, FileText, CheckCircle2, Trash } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { materielService, attributionService, employeeService, templateService } from "@/services/api";
+import { materielService, attributionService, employeeService, templateService, ax } from "@/services/api";
 import type { Materiel } from "@/types";
 
 const STATUT_COLORS: Record<string, string> = {
@@ -98,6 +98,17 @@ export function MaterielsContent() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing,  setEditing]  = useState<number | null>(null);
   const [form,     setForm]     = useState<any>(EMPTY_FORM);
+  const [refLoading, setRefLoading] = useState(false);
+
+  // Auto-génère la référence selon le type (création uniquement)
+  useEffect(() => {
+    if (!formOpen || editing) return;
+    setRefLoading(true);
+    ax.get(`/materiels/next-reference?type_materiel=${form.type_materiel}`)
+      .then(r => setForm((p: any) => ({ ...p, reference: r.data.reference })))
+      .catch(() => {})
+      .finally(() => setRefLoading(false));
+  }, [form.type_materiel, formOpen, editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // modal Gérer
   const [gererItem,   setGererItem]   = useState<Materiel | null>(null);
@@ -1665,10 +1676,17 @@ export function MaterielsContent() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Référence</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                  Référence
+                  {!editing && (
+                    refLoading
+                      ? <span className="w-3 h-3 border border-blue-400 border-t-blue-600 rounded-full animate-spin" />
+                      : <span className="text-[10px] text-blue-500 font-normal bg-blue-50 px-1.5 py-0.5 rounded-full">auto · modifiable</span>
+                  )}
+                </label>
                 <input type="text" value={form.reference}
                   onChange={e => setForm((p: any) => ({ ...p, reference: e.target.value }))}
-                  placeholder="REF-IT-0042" className="input-base" />
+                  placeholder="PCP-0001" className="input-base" />
               </div>
 
               <div>
