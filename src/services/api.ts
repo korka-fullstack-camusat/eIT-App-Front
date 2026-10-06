@@ -501,6 +501,7 @@ export const flotteSimService = {
   rmsOrange:  (search?: string) => ax.get<any[]>("/sims/rms-orange", { params: search ? { search } : {} }).then(r => r.data),
   rmsFree:    (search?: string) => ax.get<any[]>("/sims/rms-free",   { params: search ? { search } : {} }).then(r => r.data),
   alertes:    () => ax.get<{ total: number; seuil: string; alertes: any[] }>("/sims/alertes").then(r => r.data),
+  stats:      () => ax.get<{ mobiles: number; gps: number; rms_orange: number; rms_free: number; alertes: number }>("/sims/stats").then(r => r.data),
 };
 
 // ── Export Global ─────────────────────────────────────────────────────────────
