@@ -68,7 +68,7 @@ export function MaterielsContent() {
   const [search,      setSearch]      = useState(""); // valeur debounced envoyée à l'API
   const [statut,      setStatut]      = useState("");
   const [typeFilter,  setTypeFilter]  = useState("");
-  const [etatFilter,  setEtatFilter]  = useState("");
+  const [etatFilter,  setEtatFilter]  = useState(""); // kept for API compat, not shown in UI
   const [projetFilter,  setProjetFilter]  = useState("");
   const [assigneFilter, setAssigneFilter] = useState("");
   const [showAdvanced,  setShowAdvanced]  = useState(false);
@@ -775,16 +775,6 @@ export function MaterielsContent() {
             </select>
           </div>
 
-          {/* Filtre État */}
-          <select value={etatFilter} onChange={e => { setEtatFilter(e.target.value); setPage(1); }}
-            className="input-base py-2 w-auto text-sm">
-            <option value="">Tous les états</option>
-            <option value="NEUF">Neuf</option>
-            <option value="BON">Bon</option>
-            <option value="USAGE">Usagé</option>
-            <option value="DEFECTUEUX">Défectueux</option>
-          </select>
-
           {/* Bouton filtres personnalisés */}
           <button onClick={() => setShowAdvanced(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition ${
@@ -846,19 +836,22 @@ export function MaterielsContent() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
             <tr>
-              {["Type","Marque / Modèle","N° Série / MAC","Référence","État","Statut","Assigné à","Actions"].map(h => (
+              {["Référence","Type","Marque / Modèle","N° Série / MAC","Statut","Assigné à","Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Chargement…</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-gray-400">Aucun matériel</td></tr>
             ) : paginated.map(m => (
               <tr key={m.id} onClick={() => setDetailItem(m)}
                 className="hover:bg-gray-50/50 transition cursor-pointer">
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                  {m.reference || <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3 font-medium text-gray-700">{TYPE_LABELS[m.type_materiel] ?? m.type_materiel}</td>
                 <td className="px-4 py-3">
                   <p className="font-semibold text-gray-800">{m.marque}</p>
@@ -871,10 +864,6 @@ export function MaterielsContent() {
                     ? <span className="text-gray-500">{m.numero_serie}</span>
                     : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-600">
-                  {m.reference || <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-600">{m.etat}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUT_COLORS[m.statut]}`}>
                     {m.statut === "EN_PANNE" && <AlertTriangle size={10} />}
