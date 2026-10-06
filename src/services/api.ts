@@ -487,6 +487,22 @@ export const licenceService = {
   removeAttribution:(licenceId: number, attrId: number) => ax.delete(`/licences/${licenceId}/attributions/${attrId}`),
 };
 
+// ── Flotte SIM ────────────────────────────────────────────────────────────────
+export const flotteSimService = {
+  importFichier: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return ax.post<{ message: string; stats: Record<string, number>; total: number }>(
+      "/sims/import", form, { headers: { "Content-Type": "multipart/form-data" } }
+    ).then(r => r.data);
+  },
+  mobiles:    (search?: string) => ax.get<any[]>("/sims/mobiles",    { params: search ? { search } : {} }).then(r => r.data),
+  gps:        (search?: string) => ax.get<any[]>("/sims/gps",        { params: search ? { search } : {} }).then(r => r.data),
+  rmsOrange:  (search?: string) => ax.get<any[]>("/sims/rms-orange", { params: search ? { search } : {} }).then(r => r.data),
+  rmsFree:    (search?: string) => ax.get<any[]>("/sims/rms-free",   { params: search ? { search } : {} }).then(r => r.data),
+  alertes:    () => ax.get<{ total: number; seuil: string; alertes: any[] }>("/sims/alertes").then(r => r.data),
+};
+
 // ── Export Global ─────────────────────────────────────────────────────────────
 export interface ExportLogEntry {
   id: number;

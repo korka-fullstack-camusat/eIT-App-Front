@@ -17,6 +17,7 @@ import {
   UserCheck,
   FolderKanban,
   Lightbulb,
+  Signal,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { label: "Suivi employés",    path: "/suivi-employes", icon: <UserCheck size={20} /> },
   { label: "Suivi des projets",      path: "/projets",   icon: <FolderKanban size={20} /> },
   { label: "Demandes d'amélioration", path: "/demandes", icon: <Lightbulb size={20} /> },
+  { label: "Suivi Flotte SIM",        path: "/flotte-sim", icon: <Signal size={20} /> },
   {
     label: "Téléphonie",
     path: "/telephonie",
