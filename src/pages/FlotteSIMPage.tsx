@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Upload, Search, Signal, AlertTriangle, Smartphone,
-  Car, Radio, Wifi, Bell, ChevronLeft, ChevronRight,
+  Car, Radio, Bell, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { flotteSimService } from "@/services/api";
 import AppLayout from "@/components/layout/AppLayout";
 
-type Tab = "mobiles" | "gps" | "rms-orange" | "rms-free" | "alertes";
-type Stats = { mobiles: number; gps: number; rms_orange: number; rms_free: number; alertes: number };
+type Tab = "mobiles" | "gps" | "rms-orange" | "alertes";
+type Stats = { mobiles: number; gps: number; rms_orange: number; alertes: number };
 
 const PAGE_SIZE = 30;
 
@@ -36,10 +36,6 @@ const KPI_CFG: {
     activeBg: "bg-orange-50", activeBorder: "border-orange-300", activeText: "text-orange-700", activeIcon: "text-orange-500",
   },
   {
-    id: "rms-free", label: "RMS Free", icon: <Wifi size={22} />, statKey: "rms_free",
-    activeBg: "bg-green-50", activeBorder: "border-green-300", activeText: "text-green-700", activeIcon: "text-green-500",
-  },
-  {
     id: "alertes", label: "Alertes", icon: <Bell size={22} />, statKey: "alertes",
     activeBg: "bg-red-50", activeBorder: "border-red-300", activeText: "text-red-700", activeIcon: "text-red-500",
   },
@@ -57,11 +53,6 @@ const COLUMNS: Record<Exclude<Tab, "alertes">, { key: string; label: string }[]>
     { key: "date_activation", label: "Date d'activation" },
   ],
   "rms-orange": [
-    { key: "numero",          label: "N° Ligne" },
-    { key: "engagement",      label: "Engagement (mois)" },
-    { key: "date_activation", label: "Date d'activation" },
-  ],
-  "rms-free": [
     { key: "numero",          label: "N° Ligne" },
     { key: "engagement",      label: "Engagement (mois)" },
     { key: "date_activation", label: "Date d'activation" },
@@ -107,7 +98,6 @@ export default function FlotteSIMPage() {
           mobiles:      flotteSimService.mobiles,
           gps:          flotteSimService.gps,
           "rms-orange": flotteSimService.rmsOrange,
-          "rms-free":   flotteSimService.rmsFree,
         };
         setData(await loaders[tab](q || undefined));
       }
