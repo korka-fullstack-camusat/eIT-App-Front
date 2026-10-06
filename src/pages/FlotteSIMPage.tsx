@@ -172,7 +172,7 @@ export default function FlotteSIMPage() {
         </div>
 
         {/* Ligne 2 : KPI cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {KPI_CFG.map(k => {
             const isActive = activeTab === k.id;
             const count    = stats?.[k.statKey];
